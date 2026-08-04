@@ -30,23 +30,29 @@ func run(args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("config-requirements-check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required)")
+	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required unless -lint)")
 	requirementsPath := fs.String("requirements", "config-requirements.yaml", "path to the requirements registry YAML file")
 	showFeaturesFlag := fs.Bool("features", false, "print resolved feature-gate states")
 	showCheckFlag := fs.Bool("check", false, "validate conditions/requires and report violations")
 	showDepsFlag := fs.Bool("deps", false, "print external-dependency checklist")
 	featureID := fs.String("feature", "", "restrict output to a single requirement id")
 	format := fs.String("format", "text", "output format: text|json")
+	lint := fs.Bool("lint", false, "validate the requirements registry's own schema/structure and exit; no -values needed")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *valuesPath == "" {
-		fmt.Fprintln(stderr, "error: -values is required")
-		return 2
-	}
 	if *format != "text" && *format != "json" {
 		fmt.Fprintf(stderr, "error: -format must be \"text\" or \"json\", got %q\n", *format)
+		return 2
+	}
+
+	if *lint {
+		return runLint(*requirementsPath, *format, stdout, stderr)
+	}
+
+	if *valuesPath == "" {
+		fmt.Fprintln(stderr, "error: -values is required")
 		return 2
 	}
 
@@ -112,6 +118,42 @@ func run(args []string, stdout, stderr *os.File) int {
 	}
 
 	if showCheck && failed {
+		return 1
+	}
+	return 0
+}
+
+// runLint validates a requirements registry's own structure — the file's
+// schema, not any values file. Catches the failure modes strict YAML
+// decoding can't: empty required fields, duplicate ids, unrecognized
+// verify.type values. Exits non-zero iff any issue is found.
+func runLint(requirementsPath, format string, stdout, stderr *os.File) int {
+	rf, err := loadRequirements(requirementsPath)
+	if err != nil {
+		fmt.Fprintln(stderr, "error:", err)
+		return 2
+	}
+	issues := lintRequirements(rf)
+
+	if format == "json" {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(struct {
+			Issues []string `json:"issues"`
+		}{Issues: issues}); err != nil {
+			fmt.Fprintln(stderr, "error encoding report:", err)
+			return 2
+		}
+	} else if len(issues) == 0 {
+		fmt.Fprintln(stdout, "OK: no issues found")
+	} else {
+		fmt.Fprintf(stdout, "Found %d issue(s) in %s:\n", len(issues), requirementsPath)
+		for _, issue := range issues {
+			fmt.Fprintf(stdout, "  - %s\n", issue)
+		}
+	}
+
+	if len(issues) > 0 {
 		return 1
 	}
 	return 0

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -80,7 +81,14 @@ func loadRequirements(path string) (*RequirementsFile, error) {
 		return nil, fmt.Errorf("reading requirements file %q: %w", path, err)
 	}
 	var rf RequirementsFile
-	if err := yaml.Unmarshal(data, &rf); err != nil {
+	// KnownFields(true) makes an unrecognized key (e.g. a typo like
+	// "conditons") a hard parse error instead of being silently dropped.
+	// Without this, a typo'd field just produces an empty/zero value with
+	// no error — exactly the kind of silent gap this tool exists to catch,
+	// except in its own config.
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&rf); err != nil {
 		return nil, fmt.Errorf("parsing requirements file %q: %w", path, err)
 	}
 	// YAML folded block scalars (">") retain a trailing newline; trim so
@@ -278,4 +286,96 @@ func applicableDependencies(values map[string]interface{}, reqs []Requirement) [
 		}
 	}
 	return deps
+}
+
+// knownVerifyTypes lists every verify.type this tool actually knows how to
+// interpret. Kept as a single source of truth so lintRequirements and any
+// future automated checker agree on what's valid.
+var knownVerifyTypes = map[string]bool{
+	"manual": true,
+}
+
+// lintRequirements checks structural invariants that strict YAML decoding
+// alone can't catch: empty required fields, duplicate ids, and unrecognized
+// verify.type values (a likely typo, since "manual" is the only type this
+// tool understands today). Returns one message per problem found; an empty
+// slice means the file is structurally sound.
+func lintRequirements(rf *RequirementsFile) []string {
+	var issues []string
+	seenReqID := map[string]bool{}
+
+	for i, r := range rf.Requirements {
+		loc := fmt.Sprintf("requirements[%d]", i)
+		if r.ID != "" {
+			loc = fmt.Sprintf("requirements[%d] (id=%s)", i, r.ID)
+		}
+
+		if r.ID == "" {
+			issues = append(issues, fmt.Sprintf("%s: missing id", loc))
+		} else if seenReqID[r.ID] {
+			issues = append(issues, fmt.Sprintf("%s: duplicate requirement id %q", loc, r.ID))
+		} else {
+			seenReqID[r.ID] = true
+		}
+
+		if len(r.Conditions) == 0 {
+			issues = append(issues, fmt.Sprintf("%s: conditions is empty — this requirement will never apply to anything", loc))
+		}
+		for j, c := range r.Conditions {
+			if c.Path == "" {
+				issues = append(issues, fmt.Sprintf("%s: conditions[%d] has an empty path", loc, j))
+			}
+		}
+		if len(r.Requires) == 0 {
+			issues = append(issues, fmt.Sprintf("%s: requires is empty — this requirement can never be misconfigured", loc))
+		}
+		for j, req := range r.Requires {
+			if req.Path == "" {
+				issues = append(issues, fmt.Sprintf("%s: requires[%d] has an empty path", loc, j))
+			}
+		}
+
+		seenDepID := map[string]bool{}
+		for j, d := range r.ExternalDependencies {
+			depLoc := fmt.Sprintf("%s.external_dependencies[%d]", loc, j)
+			if d.ID != "" {
+				depLoc = fmt.Sprintf("%s.external_dependencies[%d] (id=%s)", loc, j, d.ID)
+			}
+			if d.ID == "" {
+				issues = append(issues, fmt.Sprintf("%s: missing id", depLoc))
+			} else if seenDepID[d.ID] {
+				issues = append(issues, fmt.Sprintf("%s: duplicate external_dependencies id %q within this requirement", depLoc, d.ID))
+			} else {
+				seenDepID[d.ID] = true
+			}
+			if d.Description == "" {
+				issues = append(issues, fmt.Sprintf("%s: missing description", depLoc))
+			}
+			if d.Verify.Type == "" {
+				issues = append(issues, fmt.Sprintf("%s: missing verify.type", depLoc))
+			} else if !knownVerifyTypes[d.Verify.Type] {
+				issues = append(issues, fmt.Sprintf("%s: unrecognized verify.type %q (known: manual) — likely a typo", depLoc, d.Verify.Type))
+			}
+			for k, impl := range d.KnownImplementations {
+				implLoc := fmt.Sprintf("%s.known_implementations[%d]", depLoc, k)
+				if impl.Environment == "" {
+					issues = append(issues, fmt.Sprintf("%s: missing environment", implLoc))
+				}
+				if impl.URL == "" {
+					issues = append(issues, fmt.Sprintf("%s: missing url", implLoc))
+				}
+			}
+		}
+
+		for j, ref := range r.References {
+			refLoc := fmt.Sprintf("%s.references[%d]", loc, j)
+			if ref.Label == "" {
+				issues = append(issues, fmt.Sprintf("%s: missing label", refLoc))
+			}
+			if ref.URL == "" {
+				issues = append(issues, fmt.Sprintf("%s: missing url", refLoc))
+			}
+		}
+	}
+	return issues
 }

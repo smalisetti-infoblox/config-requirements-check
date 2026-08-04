@@ -100,6 +100,28 @@ config-requirements-check -values <path>
             [-deps]         # print external-dependency checklist
             [-feature <id>] # restrict output to a single requirement id
             [-format text|json]   # default text
+
+config-requirements-check -lint [-requirements config-requirements.yaml] [-format text|json]
+```
+
+`-lint` validates the requirements registry's own schema/structure — no
+`-values` needed. Two layers of protection:
+
+- **Strict YAML decoding** (always on, not just under `-lint`): an
+  unrecognized field anywhere in `config-requirements.yaml` — e.g. a typo
+  like `conditons:` instead of `conditions:` — is a hard parse error. Without
+  this, a typo'd field silently decodes to an empty/zero value and the
+  requirement just quietly does the wrong thing, which is exactly the kind
+  of gap this tool exists to catch, except in its own config.
+- **Structural checks** (`-lint` only): empty `conditions`/`requires`
+  (a requirement that can never apply, or never fail), empty required
+  string fields (`id`, `description`, path), duplicate requirement or
+  dependency ids, and unrecognized `verify.type` values (only `"manual"` is
+  understood today — anything else is almost certainly a typo).
+
+```
+$ config-requirements-check -lint -requirements config-requirements.yaml
+OK: no issues found
 ```
 
 With no output-selecting flag (`-features`/`-check`/`-deps`), all three run

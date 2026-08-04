@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -199,5 +200,60 @@ func TestEvaluateRequirement_ReferencesPassthrough(t *testing.T) {
 	res := evaluateRequirement(values, req)
 	if len(res.References) != 1 || res.References[0].URL != "https://example.com/pr/128418" {
 		t.Fatalf("expected references to be passed through, got %v", res.References)
+	}
+}
+
+func TestLoadRequirements_StrictRejectsTypoField(t *testing.T) {
+	dir := t.TempDir()
+	p := writeTempFile(t, dir, "config-requirements.yaml", `
+requirements:
+  - id: test
+    conditons:
+      - path: redis.enabled
+        equals: true
+`)
+	if _, err := loadRequirements(p); err == nil {
+		t.Fatalf("expected strict decoding to reject unknown field 'conditons'")
+	}
+}
+
+func TestLintRequirements_CleanFileHasNoIssues(t *testing.T) {
+	issues := lintRequirements(&RequirementsFile{Requirements: []Requirement{mkReq()}})
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for a well-formed requirement, got %v", issues)
+	}
+}
+
+func TestLintRequirements_CatchesProblems(t *testing.T) {
+	rf := &RequirementsFile{
+		Requirements: []Requirement{
+			{
+				ID:         "dup",
+				Conditions: []Condition{{Path: "a.enabled", Equals: true}},
+				Requires:   []Condition{{Path: "b.enabled", Equals: true}},
+			},
+			{
+				ID:         "dup",
+				Conditions: nil,
+				Requires:   []Condition{{Path: "", Equals: true}},
+				ExternalDependencies: []ExternalDependency{
+					{ID: "", Description: "", Owner: "someone", Verify: Verify{Type: "mannual"}},
+				},
+			},
+		},
+	}
+	issues := lintRequirements(rf)
+	joined := strings.Join(issues, "\n")
+	for _, want := range []string{
+		`duplicate requirement id "dup"`,
+		"conditions is empty",
+		"requires[0] has an empty path",
+		"missing id",
+		"missing description",
+		`unrecognized verify.type "mannual"`,
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected issues to contain %q, got:\n%s", want, joined)
+		}
 	}
 }

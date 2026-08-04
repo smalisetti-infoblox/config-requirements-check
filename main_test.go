@@ -156,3 +156,40 @@ func TestCLI_JSONFormatIsValidAndMatchesData(t *testing.T) {
 		t.Fatalf("expected one dependency in JSON report, got %+v", report.Dependencies)
 	}
 }
+
+func TestCLI_LintCleanFile(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+
+	code, out := runCLI(t, []string{"-lint", "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "OK") {
+		t.Fatalf("expected OK in output, got:\n%s", out)
+	}
+}
+
+func TestCLI_LintCatchesTypoField(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", "requirements:\n  - id: test\n    conditons:\n      - path: a\n        equals: true\n")
+
+	code, out := runCLI(t, []string{"-lint", "-requirements", reqPath})
+	if code != 2 {
+		t.Fatalf("expected exit code 2 (parse error), got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "conditons") {
+		t.Fatalf("expected error to mention the typo'd field, got:\n%s", out)
+	}
+}
+
+func TestCLI_LintNoValuesNeeded(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+
+	// -lint must work without -values at all.
+	code, _ := runCLI(t, []string{"-lint", "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected -lint to succeed without -values, got exit %d", code)
+	}
+}
