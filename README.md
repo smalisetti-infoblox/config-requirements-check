@@ -18,7 +18,7 @@ understands the generic "path/equals" shape below.
 ## Install
 
 ```
-go install github.com/smalisetti/config-requirements-check@<tag>
+go install github.com/smalisetti-infoblox/config-requirements-check@<tag>
 ```
 
 ## The requirements schema
@@ -133,7 +133,7 @@ $ echo $?
 ## Using it from another repo's CI
 
 ```
-go install github.com/smalisetti/config-requirements-check@<tag-or-sha>
+go install github.com/smalisetti-infoblox/config-requirements-check@<tag-or-sha>
 config-requirements-check -check -deps -format json \
   -requirements config-requirements.yaml \
   -values envs/<env>/values.yaml

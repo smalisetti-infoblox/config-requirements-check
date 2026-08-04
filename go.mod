@@ -1,4 +1,4 @@
-module github.com/smalisetti/config-requirements-check
+module github.com/smalisetti-infoblox/config-requirements-check
 
 go 1.26.2
 
