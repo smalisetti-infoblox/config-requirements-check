@@ -186,3 +186,15 @@ func TestApplicableDependencies_ResolvedBy(t *testing.T) {
 		t.Fatalf("expected resolved_by to be passed through, got %v", deps[0].ResolvedBy)
 	}
 }
+
+func TestEvaluateRequirement_ReferencesPassthrough(t *testing.T) {
+	req := mkReq()
+	req.References = []Reference{{Label: "us-dev-5: Valkey enabled", URL: "https://example.com/pr/128418"}}
+	values := map[string]interface{}{
+		"redis": map[string]interface{}{"enabled": true},
+	}
+	res := evaluateRequirement(values, req)
+	if len(res.References) != 1 || res.References[0].URL != "https://example.com/pr/128418" {
+		t.Fatalf("expected references to be passed through, got %v", res.References)
+	}
+}

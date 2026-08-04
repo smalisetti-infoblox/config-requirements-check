@@ -38,6 +38,15 @@ type ExternalDependency struct {
 	ResolvedBy  []string `yaml:"resolved_by,omitempty" json:"resolved_by,omitempty"`
 }
 
+// Reference is a link to supporting history for a requirement — e.g. the PR
+// that originally turned on the condition (redis.enabled=true) in a given
+// environment. Purely informational: an audit trail of "why does this
+// requirement exist / where did the condition come from," not a check.
+type Reference struct {
+	Label string `yaml:"label" json:"label"`
+	URL   string `yaml:"url" json:"url"`
+}
+
 // Requirement describes one conditional config rule: if all Conditions
 // hold against a values file, all Requires must also hold.
 type Requirement struct {
@@ -47,6 +56,7 @@ type Requirement struct {
 	Requires             []Condition          `yaml:"requires" json:"requires"`
 	Remediation          string               `yaml:"remediation" json:"remediation"`
 	ExternalDependencies []ExternalDependency `yaml:"external_dependencies" json:"external_dependencies,omitempty"`
+	References           []Reference          `yaml:"references,omitempty" json:"references,omitempty"`
 }
 
 // RequirementsFile is the top-level shape of a requirements registry.
@@ -183,12 +193,13 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 // RequirementResult is the outcome of evaluating one requirement against a
 // values file.
 type RequirementResult struct {
-	ID          string   `json:"id"`
-	Summary     string   `json:"summary"`
-	Applicable  bool     `json:"applicable"`
-	Satisfied   bool     `json:"satisfied"`
-	UnmetPaths  []string `json:"unmet_paths,omitempty"`
-	Remediation string   `json:"remediation,omitempty"`
+	ID          string      `json:"id"`
+	Summary     string      `json:"summary"`
+	Applicable  bool        `json:"applicable"`
+	Satisfied   bool        `json:"satisfied"`
+	UnmetPaths  []string    `json:"unmet_paths,omitempty"`
+	Remediation string      `json:"remediation,omitempty"`
+	References  []Reference `json:"references,omitempty"`
 }
 
 // evaluateRequirement checks all Conditions (AND). If they don't all hold,
@@ -197,7 +208,7 @@ type RequirementResult struct {
 // hold, every Requires entry is checked independently and unmet ones are
 // reported by path.
 func evaluateRequirement(values map[string]interface{}, r Requirement) RequirementResult {
-	res := RequirementResult{ID: r.ID, Summary: r.Summary, Remediation: r.Remediation}
+	res := RequirementResult{ID: r.ID, Summary: r.Summary, Remediation: r.Remediation, References: r.References}
 
 	for _, c := range r.Conditions {
 		if !conditionHolds(values, c) {

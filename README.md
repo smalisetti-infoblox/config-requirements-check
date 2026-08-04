@@ -62,6 +62,14 @@ requirements:
         # stays in the file either way.
         resolved_by:
           - https://github.com/org/kafka-topics-repo/pull/123
+
+    # Optional: audit trail of where this requirement's condition actually
+    # came from in a real environment (e.g. the PR that first turned on
+    # redis.enabled=true there). Purely informational — printed alongside
+    # every status (-check), never affects it.
+    references:
+      - label: "us-dev-5: Valkey enabled for consolidated health"
+        url: https://github.com/org/deployment-configurations/pull/128418
 ```
 
 Adding a new breaking change is just appending a new entry to

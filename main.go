@@ -150,6 +150,9 @@ func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 				fmt.Fprintf(w, "                   unmet: %v\n", req.UnmetPaths)
 				fmt.Fprintf(w, "                   fix: %s\n", req.Remediation)
 			}
+			for _, ref := range req.References {
+				fmt.Fprintf(w, "                   ref: %s (%s)\n", ref.Label, ref.URL)
+			}
 		}
 		fmt.Fprintln(w)
 	}
