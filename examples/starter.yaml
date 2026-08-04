@@ -1,0 +1,58 @@
+# config-requirements.yaml
+#
+# Registry of cross-config requirements introduced by breaking changes to
+# your project's config/values file, plus any external prerequisites you
+# can't verify from here (Kafka topics, ingress rules, DNS records, etc.
+# owned by other repos/teams).
+#
+# Check a target values file against this registry:
+#   config-requirements-check -values <path> -requirements config-requirements.yaml
+# Validate this file's own structure (do this in CI):
+#   config-requirements-check -lint -requirements config-requirements.yaml
+requirements:
+  - id: replace-with-a-short-kebab-case-id
+    summary: >
+      One or two sentences: what changed, and why an old config combination
+      is now invalid or incomplete.
+
+    # ALL entries must hold (AND) for this requirement to apply to a given
+    # values file. Add more entries to gate on several flags together.
+    conditions:
+      - path: some.old.flag
+        equals: true
+
+    # ALL entries must hold (AND) once conditions apply. Each unmet entry is
+    # reported individually, by path, when this requirement is violated.
+    requires:
+      - path: some.new.flag
+        equals: true
+
+    remediation: >
+      What a human should actually change to fix a violation of this
+      requirement.
+
+    # Optional — delete this block if there's nothing outside this repo's
+    # own config that the feature depends on. Prerequisites here are never
+    # verified automatically (verify.type: manual is all that exists today)
+    # — they're always surfaced as a checklist, never block validation.
+    external_dependencies:
+      - id: replace-with-a-dependency-id
+        description: What has to exist or be true, and where.
+        owner: team-or-repo-that-owns-it
+        verify:
+          type: manual   # only supported value today
+        # Optional. Environments known to have already done this — a
+        # template for someone setting up a NEW environment to copy. This is
+        # NOT proof the dependency holds for whatever values file is being
+        # checked right now; environments don't share infrastructure just
+        # because they share a chart or repo.
+        known_implementations:
+          - environment: some-existing-env
+            url: https://github.com/org/repo/pull/000
+
+    # Optional — delete if not useful. Audit trail of where this
+    # requirement's condition actually came from in a real environment
+    # (e.g. the PR that first turned on some.old.flag there).
+    references:
+      - label: "some-existing-env: why the old flag got turned on there"
+        url: https://github.com/org/repo/pull/000

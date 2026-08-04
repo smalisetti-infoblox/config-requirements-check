@@ -23,6 +23,18 @@ understands the generic "path/equals" shape below.
 go install github.com/smalisetti-infoblox/config-requirements-check@<tag>
 ```
 
+## Quick start
+
+```
+config-requirements-check -init > config-requirements.yaml
+```
+
+Prints a generic, placeholder-filled starter file (with comments explaining
+every field) to stdout — replace the placeholders with your own breaking
+change, delete the `external_dependencies`/`references` blocks if you don't
+need them, then validate your edits with `-lint` (see below) before using it
+for real.
+
 ## The requirements schema
 
 ```yaml
@@ -102,7 +114,12 @@ config-requirements-check -values <path>
             [-format text|json]   # default text
 
 config-requirements-check -lint [-requirements config-requirements.yaml] [-format text|json]
+
+config-requirements-check -init
 ```
+
+`-init` prints a starter `config-requirements.yaml` to stdout and exits — no
+`-values` or `-requirements` needed (see Quick start above).
 
 `-lint` validates the requirements registry's own schema/structure — no
 `-values` needed. Two layers of protection:

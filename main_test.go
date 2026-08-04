@@ -193,3 +193,33 @@ func TestCLI_LintNoValuesNeeded(t *testing.T) {
 		t.Fatalf("expected -lint to succeed without -values, got exit %d", code)
 	}
 }
+
+func TestCLI_InitPrintsStarterTemplate(t *testing.T) {
+	code, out := runCLI(t, []string{"-init"})
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "requirements:") {
+		t.Fatalf("expected starter template to contain 'requirements:', got:\n%s", out)
+	}
+}
+
+func TestCLI_InitOutputLintsClean(t *testing.T) {
+	_, out := runCLI(t, []string{"-init"})
+
+	dir := t.TempDir()
+	p := writeTempFile(t, dir, "config-requirements.yaml", out)
+
+	code, lintOut := runCLI(t, []string{"-lint", "-requirements", p})
+	if code != 0 {
+		t.Fatalf("expected the -init output to lint clean, got exit %d; output:\n%s", code, lintOut)
+	}
+}
+
+func TestCLI_InitNeedsNoOtherFlags(t *testing.T) {
+	// -init must not require -values or a real -requirements file.
+	code, _ := runCLI(t, []string{"-init"})
+	if code != 0 {
+		t.Fatalf("expected -init alone to succeed, got exit %d", code)
+	}
+}

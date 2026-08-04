@@ -8,11 +8,20 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 )
+
+// starterTemplate is a generic, placeholder-filled config-requirements.yaml
+// emitted by -init. Embedding the actual file (rather than a Go string
+// literal) means the CI-tested copy in examples/ and the copy -init prints
+// are guaranteed to be the same bytes — no drift between docs and reality.
+//
+//go:embed examples/starter.yaml
+var starterTemplate string
 
 // Report is the full, flag-filtered result of one run, shared by the text
 // and JSON printers.
@@ -38,10 +47,17 @@ func run(args []string, stdout, stderr *os.File) int {
 	featureID := fs.String("feature", "", "restrict output to a single requirement id")
 	format := fs.String("format", "text", "output format: text|json")
 	lint := fs.Bool("lint", false, "validate the requirements registry's own schema/structure and exit; no -values needed")
+	initFlag := fs.Bool("init", false, "print a starter config-requirements.yaml to stdout and exit; no -values needed")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+
+	if *initFlag {
+		fmt.Fprint(stdout, starterTemplate)
+		return 0
+	}
+
 	if *format != "text" && *format != "json" {
 		fmt.Fprintf(stderr, "error: -format must be \"text\" or \"json\", got %q\n", *format)
 		return 2
