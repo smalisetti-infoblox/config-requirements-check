@@ -56,6 +56,12 @@ requirements:
         owner: platform-kafka / kafka-topics repo
         verify:
           type: manual   # only supported type today — extensible field
+        # Optional: once the prerequisite is actually done, record the
+        # evidence here. The checklist then shows this entry as [resolved]
+        # instead of [verify manually] — the history of what had to happen
+        # stays in the file either way.
+        resolved_by:
+          - https://github.com/org/kafka-topics-repo/pull/123
 ```
 
 Adding a new breaking change is just appending a new entry to
@@ -64,7 +70,10 @@ extensible field: only `manual` (print-as-checklist, never blocks) is
 implemented; a later version could add a real automated checker for a
 specific dependency type without touching the schema. Until such a checker
 exists, treat every external dependency as **unverified**, not
-confirmed-absent.
+confirmed-absent. Once it's actually done, add `resolved_by` (a list of
+evidence links, typically the merged PR) rather than deleting the entry —
+that way `-deps` still documents the full list of prerequisites a feature
+needed, just with each one's status visible.
 
 ## Usage
 
@@ -100,9 +109,9 @@ Features:
 Requirements:
   [satisfied]      consolidated-health-enabled-toggle
 
-External dependencies (verify manually):
-  [consolidated-health-enabled-toggle] kafka-topic-consolidated-health-events: Kafka topic `consolidated-health-events` must exist and be writable by the consuming service. (owner: platform-kafka / kafka-topics repo)
-  [consolidated-health-enabled-toggle] ingress-consolidated-health-grpc: Ingress/gateway rule exposing the ConsolidatedHealthService gRPC endpoint must be present. (owner: platform-ingress / ingress-config repo)
+External dependencies:
+  [verify manually] [consolidated-health-enabled-toggle] kafka-topic-consolidated-health-events: Kafka topic `consolidated-health-events` must exist and be writable by the consuming service. (owner: platform-kafka / kafka-topics repo)
+  [verify manually] [consolidated-health-enabled-toggle] ingress-consolidated-health-grpc: Ingress/gateway rule exposing the ConsolidatedHealthService gRPC endpoint must be present. (owner: platform-ingress / ingress-config repo)
 $ echo $?
 0
 ```

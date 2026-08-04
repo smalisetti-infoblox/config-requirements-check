@@ -158,6 +158,9 @@ func TestApplicableDependencies(t *testing.T) {
 	if len(deps) != 1 || deps[0].ID != "kafka-topic" {
 		t.Fatalf("expected 1 dependency for applicable requirement, got %v", deps)
 	}
+	if deps[0].Resolved {
+		t.Fatalf("expected unresolved dependency (no resolved_by set) to report Resolved=false")
+	}
 
 	// Conditions don't hold -> no dependency checklist.
 	values2 := map[string]interface{}{
@@ -166,5 +169,20 @@ func TestApplicableDependencies(t *testing.T) {
 	deps2 := applicableDependencies(values2, reqs)
 	if len(deps2) != 0 {
 		t.Fatalf("expected no dependencies when conditions don't hold, got %v", deps2)
+	}
+}
+
+func TestApplicableDependencies_ResolvedBy(t *testing.T) {
+	req := mkReq()
+	req.ExternalDependencies[0].ResolvedBy = []string{"https://example.com/pr/1"}
+	values := map[string]interface{}{
+		"redis": map[string]interface{}{"enabled": true},
+	}
+	deps := applicableDependencies(values, []Requirement{req})
+	if len(deps) != 1 || !deps[0].Resolved {
+		t.Fatalf("expected dependency with resolved_by set to report Resolved=true, got %+v", deps)
+	}
+	if !reflect.DeepEqual(deps[0].ResolvedBy, []string{"https://example.com/pr/1"}) {
+		t.Fatalf("expected resolved_by to be passed through, got %v", deps[0].ResolvedBy)
 	}
 }

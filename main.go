@@ -155,12 +155,19 @@ func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 	}
 
 	if showDeps {
-		fmt.Fprintln(w, "External dependencies (verify manually):")
+		fmt.Fprintln(w, "External dependencies:")
 		if len(r.Dependencies) == 0 {
 			fmt.Fprintln(w, "  (none apply)")
 		}
 		for _, d := range r.Dependencies {
-			fmt.Fprintf(w, "  [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+			if d.Resolved {
+				fmt.Fprintf(w, "  [resolved]        [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+				for _, link := range d.ResolvedBy {
+					fmt.Fprintf(w, "                    resolved by: %s\n", link)
+				}
+			} else {
+				fmt.Fprintf(w, "  [verify manually] [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+			}
 		}
 	}
 }

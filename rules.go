@@ -25,12 +25,17 @@ type Verify struct {
 
 // ExternalDependency is a prerequisite this tool cannot verify itself
 // (owned by another repo/system). Always surfaced as a checklist, never
-// affects exit status.
+// affects exit status. ResolvedBy is an optional list of evidence links
+// (e.g. a merged PR that created the Kafka topic or ingress rule) — set it
+// once the prerequisite has actually been fulfilled, so the checklist shows
+// it as resolved instead of pending, without ever deleting the record of
+// what had to happen.
 type ExternalDependency struct {
-	ID          string `yaml:"id" json:"id"`
-	Description string `yaml:"description" json:"description"`
-	Owner       string `yaml:"owner" json:"owner"`
-	Verify      Verify `yaml:"verify" json:"verify"`
+	ID          string   `yaml:"id" json:"id"`
+	Description string   `yaml:"description" json:"description"`
+	Owner       string   `yaml:"owner" json:"owner"`
+	Verify      Verify   `yaml:"verify" json:"verify"`
+	ResolvedBy  []string `yaml:"resolved_by,omitempty" json:"resolved_by,omitempty"`
 }
 
 // Requirement describes one conditional config rule: if all Conditions
@@ -215,11 +220,13 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 // DependencyEntry flattens one requirement's external dependency into a
 // report row, tagged with which requirement it came from.
 type DependencyEntry struct {
-	RequirementID string `json:"requirement_id"`
-	ID            string `json:"id"`
-	Description   string `json:"description"`
-	Owner         string `json:"owner"`
-	VerifyType    string `json:"verify_type"`
+	RequirementID string   `json:"requirement_id"`
+	ID            string   `json:"id"`
+	Description   string   `json:"description"`
+	Owner         string   `json:"owner"`
+	VerifyType    string   `json:"verify_type"`
+	Resolved      bool     `json:"resolved"`
+	ResolvedBy    []string `json:"resolved_by,omitempty"`
 }
 
 // applicableDependencies returns the external dependencies of every
@@ -246,6 +253,8 @@ func applicableDependencies(values map[string]interface{}, reqs []Requirement) [
 				Description:   d.Description,
 				Owner:         d.Owner,
 				VerifyType:    d.Verify.Type,
+				Resolved:      len(d.ResolvedBy) > 0,
+				ResolvedBy:    d.ResolvedBy,
 			})
 		}
 	}
