@@ -27,6 +27,11 @@ requirements:
         owner: platform-kafka / kafka-topics repo
         verify:
           type: manual
+        # Environments that already did this — not proof it's done for
+        # whatever values file you're checking, just something to copy.
+        known_implementations:
+          - environment: us-dev-2
+            url: https://github.com/org/kafka-topics-repo/pull/123
       - id: ingress-consolidated-health-grpc
         description: >
           Ingress/gateway rule exposing the ConsolidatedHealthService gRPC

@@ -158,8 +158,8 @@ func TestApplicableDependencies(t *testing.T) {
 	if len(deps) != 1 || deps[0].ID != "kafka-topic" {
 		t.Fatalf("expected 1 dependency for applicable requirement, got %v", deps)
 	}
-	if deps[0].Resolved {
-		t.Fatalf("expected unresolved dependency (no resolved_by set) to report Resolved=false")
+	if len(deps[0].KnownImplementations) != 0 {
+		t.Fatalf("expected no known implementations by default, got %v", deps[0].KnownImplementations)
 	}
 
 	// Conditions don't hold -> no dependency checklist.
@@ -172,18 +172,21 @@ func TestApplicableDependencies(t *testing.T) {
 	}
 }
 
-func TestApplicableDependencies_ResolvedBy(t *testing.T) {
+func TestApplicableDependencies_KnownImplementations(t *testing.T) {
 	req := mkReq()
-	req.ExternalDependencies[0].ResolvedBy = []string{"https://example.com/pr/1"}
+	req.ExternalDependencies[0].KnownImplementations = []KnownImplementation{
+		{Environment: "us-dev-2", URL: "https://example.com/pr/1"},
+	}
 	values := map[string]interface{}{
 		"redis": map[string]interface{}{"enabled": true},
 	}
 	deps := applicableDependencies(values, []Requirement{req})
-	if len(deps) != 1 || !deps[0].Resolved {
-		t.Fatalf("expected dependency with resolved_by set to report Resolved=true, got %+v", deps)
+	if len(deps) != 1 || len(deps[0].KnownImplementations) != 1 {
+		t.Fatalf("expected 1 known implementation, got %+v", deps)
 	}
-	if !reflect.DeepEqual(deps[0].ResolvedBy, []string{"https://example.com/pr/1"}) {
-		t.Fatalf("expected resolved_by to be passed through, got %v", deps[0].ResolvedBy)
+	want := KnownImplementation{Environment: "us-dev-2", URL: "https://example.com/pr/1"}
+	if !reflect.DeepEqual(deps[0].KnownImplementations[0], want) {
+		t.Fatalf("expected known implementation to be passed through, got %v", deps[0].KnownImplementations[0])
 	}
 }
 

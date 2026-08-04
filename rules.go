@@ -23,19 +23,29 @@ type Verify struct {
 	Type string `yaml:"type" json:"type"`
 }
 
+// KnownImplementation points at a concrete case where this dependency was
+// actually fulfilled in one named environment (e.g. the PR that created a
+// Kafka topic for "us-dev-2"). This is not verification that the dependency
+// holds for whatever values file is being checked right now — environments
+// don't share infrastructure just because they share a chart. It's a
+// pointer for a human setting up a *new* environment: "here's how this was
+// done elsewhere, copy the pattern."
+type KnownImplementation struct {
+	Environment string `yaml:"environment" json:"environment"`
+	URL         string `yaml:"url" json:"url"`
+}
+
 // ExternalDependency is a prerequisite this tool cannot verify itself
 // (owned by another repo/system). Always surfaced as a checklist, never
-// affects exit status. ResolvedBy is an optional list of evidence links
-// (e.g. a merged PR that created the Kafka topic or ingress rule) — set it
-// once the prerequisite has actually been fulfilled, so the checklist shows
-// it as resolved instead of pending, without ever deleting the record of
-// what had to happen.
+// affects exit status. KnownImplementations lists environments where this
+// was already done, purely so other environments have something to copy —
+// it does not mean the current values file's environment has it.
 type ExternalDependency struct {
-	ID          string   `yaml:"id" json:"id"`
-	Description string   `yaml:"description" json:"description"`
-	Owner       string   `yaml:"owner" json:"owner"`
-	Verify      Verify   `yaml:"verify" json:"verify"`
-	ResolvedBy  []string `yaml:"resolved_by,omitempty" json:"resolved_by,omitempty"`
+	ID                   string                `yaml:"id" json:"id"`
+	Description          string                `yaml:"description" json:"description"`
+	Owner                string                `yaml:"owner" json:"owner"`
+	Verify               Verify                `yaml:"verify" json:"verify"`
+	KnownImplementations []KnownImplementation `yaml:"known_implementations,omitempty" json:"known_implementations,omitempty"`
 }
 
 // Reference is a link to supporting history for a requirement — e.g. the PR
@@ -231,13 +241,12 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 // DependencyEntry flattens one requirement's external dependency into a
 // report row, tagged with which requirement it came from.
 type DependencyEntry struct {
-	RequirementID string   `json:"requirement_id"`
-	ID            string   `json:"id"`
-	Description   string   `json:"description"`
-	Owner         string   `json:"owner"`
-	VerifyType    string   `json:"verify_type"`
-	Resolved      bool     `json:"resolved"`
-	ResolvedBy    []string `json:"resolved_by,omitempty"`
+	RequirementID        string                `json:"requirement_id"`
+	ID                   string                `json:"id"`
+	Description          string                `json:"description"`
+	Owner                string                `json:"owner"`
+	VerifyType           string                `json:"verify_type"`
+	KnownImplementations []KnownImplementation `json:"known_implementations,omitempty"`
 }
 
 // applicableDependencies returns the external dependencies of every
@@ -259,13 +268,12 @@ func applicableDependencies(values map[string]interface{}, reqs []Requirement) [
 		}
 		for _, d := range r.ExternalDependencies {
 			deps = append(deps, DependencyEntry{
-				RequirementID: r.ID,
-				ID:            d.ID,
-				Description:   d.Description,
-				Owner:         d.Owner,
-				VerifyType:    d.Verify.Type,
-				Resolved:      len(d.ResolvedBy) > 0,
-				ResolvedBy:    d.ResolvedBy,
+				RequirementID:        r.ID,
+				ID:                   d.ID,
+				Description:          d.Description,
+				Owner:                d.Owner,
+				VerifyType:           d.Verify.Type,
+				KnownImplementations: d.KnownImplementations,
 			})
 		}
 	}

@@ -10,7 +10,9 @@ it reports:
 
 - which named config paths ("features") are enabled, disabled, or unset
 - which requirements are satisfied, not applicable, or misconfigured
-- which prerequisites live in other repos/systems and must be checked manually
+- which prerequisites live in other repos/systems, and — for each — whether
+  any environment is known to have already set it up (something to copy
+  when standing up a new one)
 
 It knows nothing about any specific product, Helm chart, or schema. It only
 understands the generic "path/equals" shape below.
@@ -56,12 +58,14 @@ requirements:
         owner: platform-kafka / kafka-topics repo
         verify:
           type: manual   # only supported type today — extensible field
-        # Optional: once the prerequisite is actually done, record the
-        # evidence here. The checklist then shows this entry as [resolved]
-        # instead of [verify manually] — the history of what had to happen
-        # stays in the file either way.
-        resolved_by:
-          - https://github.com/org/kafka-topics-repo/pull/123
+        # Optional: environments where this was already done, so whoever's
+        # setting up a *new* environment has something to copy. This is NOT
+        # verification that the dependency holds for the values file you're
+        # currently checking — environments don't share infrastructure just
+        # because they share a chart.
+        known_implementations:
+          - environment: us-dev-2
+            url: https://github.com/org/kafka-topics-repo/pull/123
 
     # Optional: audit trail of where this requirement's condition actually
     # came from in a real environment (e.g. the PR that first turned on
@@ -77,11 +81,14 @@ Adding a new breaking change is just appending a new entry to
 extensible field: only `manual` (print-as-checklist, never blocks) is
 implemented; a later version could add a real automated checker for a
 specific dependency type without touching the schema. Until such a checker
-exists, treat every external dependency as **unverified**, not
-confirmed-absent. Once it's actually done, add `resolved_by` (a list of
-evidence links, typically the merged PR) rather than deleting the entry —
-that way `-deps` still documents the full list of prerequisites a feature
-needed, just with each one's status visible.
+exists, treat every external dependency as **unverified for the environment
+you're checking** — `known_implementations` documents other environments
+that solved it, as a template to copy, not as proof it's done here. Always
+add the specific environment name alongside the link: a fix landing in one
+env's config, or one env's kafka-topic list, doesn't mean another env has
+it — only a genuinely shared default (e.g. a chart's base `values.yaml`
+with no per-env override) covers more than one environment, and even then
+it's worth double-checking nothing overrides it downstream.
 
 ## Usage
 
@@ -117,9 +124,11 @@ Features:
 Requirements:
   [satisfied]      consolidated-health-enabled-toggle
 
-External dependencies:
-  [verify manually] [consolidated-health-enabled-toggle] kafka-topic-consolidated-health-events: Kafka topic `consolidated-health-events` must exist and be writable by the consuming service. (owner: platform-kafka / kafka-topics repo)
-  [verify manually] [consolidated-health-enabled-toggle] ingress-consolidated-health-grpc: Ingress/gateway rule exposing the ConsolidatedHealthService gRPC endpoint must be present. (owner: platform-ingress / ingress-config repo)
+External dependencies (not verified against this values file — set up per environment):
+  [consolidated-health-enabled-toggle] kafka-topic-consolidated-health-events: Kafka topic `consolidated-health-events` must exist and be writable by the consuming service. (owner: platform-kafka / kafka-topics repo)
+                    known implementation in us-dev-2: https://github.com/org/kafka-topics-repo/pull/123
+  [consolidated-health-enabled-toggle] ingress-consolidated-health-grpc: Ingress/gateway rule exposing the ConsolidatedHealthService gRPC endpoint must be present. (owner: platform-ingress / ingress-config repo)
+                    no known implementations on record — verify manually
 $ echo $?
 0
 ```

@@ -158,18 +158,17 @@ func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 	}
 
 	if showDeps {
-		fmt.Fprintln(w, "External dependencies:")
+		fmt.Fprintln(w, "External dependencies (not verified against this values file — set up per environment):")
 		if len(r.Dependencies) == 0 {
 			fmt.Fprintln(w, "  (none apply)")
 		}
 		for _, d := range r.Dependencies {
-			if d.Resolved {
-				fmt.Fprintf(w, "  [resolved]        [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
-				for _, link := range d.ResolvedBy {
-					fmt.Fprintf(w, "                    resolved by: %s\n", link)
-				}
-			} else {
-				fmt.Fprintf(w, "  [verify manually] [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+			fmt.Fprintf(w, "  [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+			if len(d.KnownImplementations) == 0 {
+				fmt.Fprintln(w, "                    no known implementations on record — verify manually")
+			}
+			for _, impl := range d.KnownImplementations {
+				fmt.Fprintf(w, "                    known implementation in %s: %s\n", impl.Environment, impl.URL)
 			}
 		}
 	}
