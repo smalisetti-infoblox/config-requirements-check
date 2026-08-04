@@ -223,3 +223,20 @@ func TestCLI_InitNeedsNoOtherFlags(t *testing.T) {
 		t.Fatalf("expected -init alone to succeed, got exit %d", code)
 	}
 }
+
+func TestCLI_HelpExitsZeroAndShowsUsage(t *testing.T) {
+	code, out := runCLI(t, []string{"-h"})
+	if code != 0 {
+		t.Fatalf("expected -h to exit 0, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "Usage:") || !strings.Contains(out, "Examples:") || !strings.Contains(out, "Exit codes:") {
+		t.Fatalf("expected help output to contain Usage/Examples/Exit codes sections, got:\n%s", out)
+	}
+}
+
+func TestCLI_UnknownFlagExitsTwo(t *testing.T) {
+	code, _ := runCLI(t, []string{"-bogus-flag"})
+	if code != 2 {
+		t.Fatalf("expected an unrecognized flag to exit 2, got %d", code)
+	}
+}

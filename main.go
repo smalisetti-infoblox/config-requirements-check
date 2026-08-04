@@ -10,6 +10,7 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -39,7 +40,7 @@ func run(args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("config-requirements-check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required unless -lint)")
+	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required unless -lint or -init)")
 	requirementsPath := fs.String("requirements", "config-requirements.yaml", "path to the requirements registry YAML file")
 	showFeaturesFlag := fs.Bool("features", false, "print resolved feature-gate states")
 	showCheckFlag := fs.Bool("check", false, "validate conditions/requires and report violations")
@@ -47,9 +48,46 @@ func run(args []string, stdout, stderr *os.File) int {
 	featureID := fs.String("feature", "", "restrict output to a single requirement id")
 	format := fs.String("format", "text", "output format: text|json")
 	lint := fs.Bool("lint", false, "validate the requirements registry's own schema/structure and exit; no -values needed")
-	initFlag := fs.Bool("init", false, "print a starter config-requirements.yaml to stdout and exit; no -values needed")
+	initFlag := fs.Bool("init", false, "print a starter config-requirements.yaml to stdout and exit; no -values or -requirements needed")
+
+	fs.Usage = func() {
+		out := fs.Output()
+		fmt.Fprint(out, `config-requirements-check catches silent config-migration gaps: cases where
+a breaking change makes an old config combination invalid, but nothing
+crashes or errors -- the affected feature just quietly stops working.
+
+Given a requirements registry (YAML) and a values file (YAML), it reports
+which named config paths are enabled/disabled, which conditional
+requirements are satisfied/misconfigured, and which external (cross-repo)
+prerequisites need manual verification.
+
+Usage:
+  config-requirements-check -values <path> [flags]
+  config-requirements-check -lint [-requirements <path>] [-format text|json]
+  config-requirements-check -init
+
+Flags:
+`)
+		fs.PrintDefaults()
+		fmt.Fprint(out, `
+Examples:
+  config-requirements-check -init > config-requirements.yaml
+  config-requirements-check -lint -requirements config-requirements.yaml
+  config-requirements-check -values envs/us-dev-2/values.yaml
+  config-requirements-check -check -deps -format json -values envs/us-dev-2/values.yaml
+
+Exit codes:
+  0  no violations found (or -features/-deps/-lint/-init ran successfully)
+  1  -check (or the no-flag default) found a misconfigured requirement,
+     or -lint found a structural problem
+  2  usage error: bad flags, missing -values, or an unreadable/unparsable file
+`)
+	}
 
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 

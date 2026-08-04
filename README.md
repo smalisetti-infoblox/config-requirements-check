@@ -149,6 +149,9 @@ which includes `-check`) finds at least one requirement whose `conditions`
 hold but whose `requires` doesn't. `-features` and `-deps` are purely
 informational and never affect the exit code.
 
+Run `config-requirements-check -h` for the full flag reference with
+examples and exit codes.
+
 ## Worked example
 
 `examples/config-requirements.yaml` and `examples/values.yaml` model the
