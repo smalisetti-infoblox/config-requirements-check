@@ -1,0 +1,7 @@
+# Compliant example: redis is enabled and consolidatedHealth is explicitly
+# enabled too, satisfying the consolidated-health-enabled-toggle requirement.
+redis:
+  enabled: true
+
+consolidatedHealth:
+  enabled: true

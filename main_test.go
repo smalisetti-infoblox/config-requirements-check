@@ -1,0 +1,158 @@
+package main
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func writeTempFile(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", p, err)
+	}
+	return p
+}
+
+const testRequirements = `
+requirements:
+  - id: consolidated-health-enabled-toggle
+    summary: consolidatedHealth.enabled must be set when redis.enabled is true.
+    conditions:
+      - path: redis.enabled
+        equals: true
+    requires:
+      - path: consolidatedHealth.enabled
+        equals: true
+    remediation: "Set consolidatedHealth.enabled: true."
+    external_dependencies:
+      - id: kafka-topic
+        description: topic must exist
+        owner: platform-kafka
+        verify:
+          type: manual
+`
+
+func runCLI(t *testing.T, args []string) (int, string) {
+	t.Helper()
+	dir := t.TempDir()
+	stdoutPath := filepath.Join(dir, "stdout")
+	stderrPath := filepath.Join(dir, "stderr")
+	stdout, err := os.Create(stdoutPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := os.Create(stderrPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := run(args, stdout, stderr)
+	stdout.Close()
+	stderr.Close()
+	out, _ := os.ReadFile(stdoutPath)
+	errOut, _ := os.ReadFile(stderrPath)
+	return code, string(out) + string(errOut)
+}
+
+func TestCLI_CheckFailsOnMissingRequirement(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "MISCONFIGURED") {
+		t.Fatalf("expected MISCONFIGURED in output, got:\n%s", out)
+	}
+}
+
+func TestCLI_CheckPassesWhenSatisfied(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\nconsolidatedHealth:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "satisfied") {
+		t.Fatalf("expected satisfied in output, got:\n%s", out)
+	}
+}
+
+func TestCLI_DepsPrintedEvenWhenSatisfied(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\nconsolidatedHealth:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-deps", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit code 0 (deps never fail), got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "kafka-topic") {
+		t.Fatalf("expected kafka-topic dependency listed, got:\n%s", out)
+	}
+}
+
+func TestCLI_DefaultModeShowsEverythingAndFailsOnViolation(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit code 1 in default mode with a violation, got %d", code)
+	}
+	if !strings.Contains(out, "Features:") || !strings.Contains(out, "Requirements:") || !strings.Contains(out, "External dependencies") {
+		t.Fatalf("expected all three sections in default mode, got:\n%s", out)
+	}
+}
+
+func TestCLI_FeatureFilter(t *testing.T) {
+	dir := t.TempDir()
+	multiReq := testRequirements + `
+  - id: other-toggle
+    conditions:
+      - path: other.enabled
+        equals: true
+    requires:
+      - path: other.required
+        equals: true
+`
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", multiReq)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\nother:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-check", "-feature", "consolidated-health-enabled-toggle", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+	if strings.Contains(out, "other-toggle") {
+		t.Fatalf("expected -feature to filter out other-toggle, got:\n%s", out)
+	}
+}
+
+func TestCLI_JSONFormatIsValidAndMatchesData(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "config-requirements.yaml", testRequirements)
+	valuesPath := writeTempFile(t, dir, "values.yaml", "redis:\n  enabled: true\n")
+
+	code, out := runCLI(t, []string{"-format", "json", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; output:\n%s", code, out)
+	}
+	var report Report
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("expected valid JSON, got error %v; output:\n%s", err, out)
+	}
+	if len(report.Requirements) != 1 || report.Requirements[0].Satisfied {
+		t.Fatalf("expected one unsatisfied requirement in JSON report, got %+v", report.Requirements)
+	}
+	if len(report.Dependencies) != 1 {
+		t.Fatalf("expected one dependency in JSON report, got %+v", report.Dependencies)
+	}
+}

@@ -1,0 +1,36 @@
+# Example requirements registry, modeled on a real migration: a service
+# renamed an implicit config inference (feature X worked whenever
+# infra-flag Y was on) into an explicit toggle. Copy this file into your
+# own repo and edit the entries for your own breaking changes.
+requirements:
+  - id: consolidated-health-enabled-toggle
+    summary: >
+      consolidatedHealth.enabled now explicitly gates consolidated health
+      (previously inferred from redis.enabled). Environments that enabled
+      consolidated health via redis.enabled=true must set
+      consolidatedHealth.enabled=true, or the feature silently disables.
+    conditions:
+      - path: redis.enabled
+        equals: true
+    requires:
+      - path: consolidatedHealth.enabled
+        equals: true
+    remediation: >
+      Set consolidatedHealth.enabled: true in the environment's values file
+      (in addition to redis.enabled: true, if Redis is used for other
+      purposes).
+    external_dependencies:
+      - id: kafka-topic-consolidated-health-events
+        description: >
+          Kafka topic `consolidated-health-events` must exist and be
+          writable by the consuming service.
+        owner: platform-kafka / kafka-topics repo
+        verify:
+          type: manual
+      - id: ingress-consolidated-health-grpc
+        description: >
+          Ingress/gateway rule exposing the ConsolidatedHealthService gRPC
+          endpoint must be present.
+        owner: platform-ingress / ingress-config repo
+        verify:
+          type: manual
