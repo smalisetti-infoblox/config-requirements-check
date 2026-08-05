@@ -286,6 +286,14 @@ func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 					fmt.Fprintf(w, "                   actual values: %v\n", req.ActualValues)
 				}
 				fmt.Fprintf(w, "                   fix: %s\n", req.Remediation)
+				// Show structured remediation hints if available
+				for _, hint := range req.RemediationHints {
+					fmt.Fprintf(w, "                   hint: %s %s = %v", hint.Type, hint.Path, hint.Value)
+					if hint.Description != "" {
+						fmt.Fprintf(w, " (%s)", hint.Description)
+					}
+					fmt.Fprintf(w, "\n")
+				}
 			}
 			for _, ref := range req.References {
 				fmt.Fprintf(w, "                   ref: %s (%s)\n", ref.Label, ref.URL)

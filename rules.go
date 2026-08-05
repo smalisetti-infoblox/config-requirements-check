@@ -65,14 +65,24 @@ type Reference struct {
 	URL   string `yaml:"url" json:"url"`
 }
 
+// RemediationHint provides machine-parseable guidance on how to fix a misconfigured requirement.
+type RemediationHint struct {
+	Type        string      `yaml:"type" json:"type"`   // set_field, remove_field, etc.
+	Path        string      `yaml:"path" json:"path"`   // Field to modify
+	Value       interface{} `yaml:"value,omitempty" json:"value,omitempty"`
+	Description string      `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
 // Requirement describes one conditional config rule: if all Conditions
-// hold against a values file, all Requires must also hold.
+// hold AND none of the Unless conditions hold, then all Requires must also hold.
 type Requirement struct {
 	ID                   string               `yaml:"id" json:"id"`
 	Summary              string               `yaml:"summary" json:"summary"`
 	Conditions           []Condition          `yaml:"conditions" json:"conditions"`
+	Unless               []Condition          `yaml:"unless,omitempty" json:"unless,omitempty"` // Forbidden conditions
 	Requires             []Condition          `yaml:"requires" json:"requires"`
 	Remediation          string               `yaml:"remediation" json:"remediation"`
+	RemediationHints     []RemediationHint    `yaml:"remediation_hints,omitempty" json:"remediation_hints,omitempty"`
 	ExternalDependencies []ExternalDependency `yaml:"external_dependencies" json:"external_dependencies,omitempty"`
 	References           []Reference          `yaml:"references,omitempty" json:"references,omitempty"`
 }
@@ -298,14 +308,15 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 // RequirementResult is the outcome of evaluating one requirement against a
 // values file.
 type RequirementResult struct {
-	ID           string                 `json:"id"`
-	Summary      string                 `json:"summary"`
-	Applicable   bool                   `json:"applicable"`
-	Satisfied    bool                   `json:"satisfied"`
-	UnmetPaths   []string               `json:"unmet_paths,omitempty"`
-	Remediation  string                 `json:"remediation,omitempty"`
-	References   []Reference            `json:"references,omitempty"`
-	ActualValues map[string]interface{} `json:"actual_values,omitempty"` // Values for all paths referenced in conditions/requires
+	ID                string                 `json:"id"`
+	Summary           string                 `json:"summary"`
+	Applicable        bool                   `json:"applicable"`
+	Satisfied         bool                   `json:"satisfied"`
+	UnmetPaths        []string               `json:"unmet_paths,omitempty"`
+	Remediation       string                 `json:"remediation,omitempty"`
+	RemediationHints  []RemediationHint      `json:"remediation_hints,omitempty"`
+	References        []Reference            `json:"references,omitempty"`
+	ActualValues      map[string]interface{} `json:"actual_values,omitempty"` // Values for all paths referenced in conditions/requires
 }
 
 // evaluateRequirement checks all Conditions (AND). If they don't all hold,
@@ -314,12 +325,21 @@ type RequirementResult struct {
 // hold, every Requires entry is checked independently and unmet ones are
 // reported by path. Also captures actual values for all paths mentioned.
 func evaluateRequirement(values map[string]interface{}, r Requirement) RequirementResult {
-	res := RequirementResult{ID: r.ID, Summary: r.Summary, Remediation: r.Remediation, References: r.References}
+	res := RequirementResult{
+		ID:               r.ID,
+		Summary:          r.Summary,
+		Remediation:      r.Remediation,
+		RemediationHints: r.RemediationHints,
+		References:       r.References,
+	}
 
-	// Collect all paths referenced in conditions and requires
+	// Collect all paths referenced in conditions, unless, and requires
 	pathsToCapture := make(map[string]bool)
 	for _, c := range r.Conditions {
 		pathsToCapture[c.Path] = true
+	}
+	for _, u := range r.Unless {
+		pathsToCapture[u.Path] = true
 	}
 	for _, req := range r.Requires {
 		pathsToCapture[req.Path] = true
@@ -343,6 +363,15 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 	}
 	res.Applicable = true
 
+	// Check unless conditions: if any hold, the requirement is violated
+	for _, u := range r.Unless {
+		if conditionHolds(values, u) {
+			// Unless condition holds - this violates the requirement
+			res.UnmetPaths = append(res.UnmetPaths, "FORBIDDEN: "+u.Path)
+		}
+	}
+
+	// Check requires conditions
 	for _, req := range r.Requires {
 		if !conditionHolds(values, req) {
 			res.UnmetPaths = append(res.UnmetPaths, req.Path)
@@ -465,6 +494,16 @@ func lintRequirements(rf *RequirementsFile) []string {
 				issues = append(issues, fmt.Sprintf("%s: conditions[%d] must have exactly one operator (equals, gte, gt, lte, lt, or contains)", loc, j))
 			}
 		}
+
+		for j, u := range r.Unless {
+			if u.Path == "" {
+				issues = append(issues, fmt.Sprintf("%s: unless[%d] has an empty path", loc, j))
+			}
+			if !isValidConditionOperator(u) {
+				issues = append(issues, fmt.Sprintf("%s: unless[%d] must have exactly one operator (equals, gte, gt, lte, lt, or contains)", loc, j))
+			}
+		}
+
 		if len(r.Requires) == 0 {
 			issues = append(issues, fmt.Sprintf("%s: requires is empty — this requirement can never be misconfigured", loc))
 		}

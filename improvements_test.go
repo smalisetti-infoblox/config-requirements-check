@@ -563,3 +563,271 @@ ready: true
 		t.Fatalf("metadata should not appear in text output")
 	}
 }
+
+// ==== Improvement #4: Mutually Exclusive Conditions (Unless) Tests ====
+
+func TestEvaluateRequirement_UnlessConditionPasses(t *testing.T) {
+	req := Requirement{
+		ID: "legacy-mode-removal",
+		Conditions: []Condition{
+			{Path: "redis.enabled", Equals: true},
+		},
+		Unless: []Condition{
+			{Path: "redis.legacy_mode", Equals: true},
+		},
+		Requires: []Condition{
+			{Path: "redis.cluster_mode", Equals: true},
+		},
+	}
+
+	// Valid: redis enabled, no legacy mode, cluster mode enabled
+	values1 := map[string]interface{}{
+		"redis": map[string]interface{}{
+			"enabled":      true,
+			"legacy_mode":  false,
+			"cluster_mode": true,
+		},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Satisfied {
+		t.Fatalf("should be satisfied when unless condition is false")
+	}
+
+	// Invalid: redis enabled, but legacy mode is also enabled (forbidden!)
+	values2 := map[string]interface{}{
+		"redis": map[string]interface{}{
+			"enabled":      true,
+			"legacy_mode":  true,
+			"cluster_mode": true,
+		},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Satisfied {
+		t.Fatalf("should fail when unless condition is true (forbidden state)")
+	}
+	if len(res2.UnmetPaths) == 0 {
+		t.Fatalf("should report unmet path for forbidden state")
+	}
+	// Should have FORBIDDEN marker
+	found := false
+	for _, path := range res2.UnmetPaths {
+		if strings.Contains(path, "FORBIDDEN") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("should mark forbidden paths, got %v", res2.UnmetPaths)
+	}
+}
+
+func TestConditionHolds_UnlessWithMultipleConditions(t *testing.T) {
+	req := Requirement{
+		ID: "auth-mode",
+		Conditions: []Condition{
+			{Path: "auth.enabled", Equals: true},
+		},
+		Unless: []Condition{
+			{Path: "auth.mfa_only", Equals: true},
+			{Path: "auth.legacy_method", Equals: true},
+		},
+		Requires: []Condition{
+			{Path: "auth.provider", Equals: "oauth2"},
+		},
+	}
+
+	// Valid: auth enabled, neither forbidden mode enabled
+	values1 := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"enabled":         true,
+			"mfa_only":        false,
+			"legacy_method":   false,
+			"provider":        "oauth2",
+		},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Satisfied {
+		t.Fatalf("should satisfy when no unless conditions hold")
+	}
+
+	// Invalid: mfa_only is forbidden
+	values2 := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"enabled":         true,
+			"mfa_only":        true,  // FORBIDDEN!
+			"legacy_method":   false,
+			"provider":        "oauth2",
+		},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Satisfied {
+		t.Fatalf("should fail when any unless condition holds")
+	}
+}
+
+func TestCLI_UnlessConditions(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: no-legacy
+    summary: "Legacy auth must not coexist with new auth"
+    conditions:
+      - path: auth.enabled
+        equals: true
+    unless:
+      - path: auth.legacy_only
+        equals: true
+    requires:
+      - path: auth.provider
+        equals: "saml"
+    remediation: "Remove auth.legacy_only or upgrade to SAML provider"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+auth:
+  enabled: true
+  legacy_only: true
+  provider: "saml"
+`)
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1 (forbidden condition), got %d", code)
+	}
+	if !strings.Contains(out, "MISCONFIGURED") {
+		t.Fatalf("should show requirement as misconfigured")
+	}
+	if !strings.Contains(out, "FORBIDDEN") {
+		t.Fatalf("should show FORBIDDEN marker for legacy_only")
+	}
+}
+
+// ==== Improvement #8: Structured Remediation Hints Tests ====
+
+func TestEvaluateRequirement_PassesThroughRemediationHints(t *testing.T) {
+	hint := RemediationHint{
+		Type:        "set_field",
+		Path:        "cache.enabled",
+		Value:       true,
+		Description: "Enable cache to improve performance",
+	}
+	req := Requirement{
+		ID:               "cache-check",
+		Conditions:       []Condition{{Path: "redis.enabled", Equals: true}},
+		Requires:         []Condition{{Path: "cache.enabled", Equals: true}},
+		Remediation:      "Enable caching",
+		RemediationHints: []RemediationHint{hint},
+	}
+
+	values := map[string]interface{}{
+		"redis": map[string]interface{}{"enabled": true},
+	}
+
+	res := evaluateRequirement(values, req)
+	if len(res.RemediationHints) != 1 {
+		t.Fatalf("expected remediation hints to be passed through, got %v", res.RemediationHints)
+	}
+	if res.RemediationHints[0].Type != "set_field" {
+		t.Fatalf("expected hint type set_field, got %s", res.RemediationHints[0].Type)
+	}
+}
+
+func TestCLI_RemediationHintsInOutput(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: database-migration
+    summary: "Database credentials must be configured"
+    conditions:
+      - path: database.enabled
+        equals: true
+    requires:
+      - path: database.user
+        equals: null
+      - path: database.password
+        equals: null
+    remediation: "Configure database credentials"
+    remediation_hints:
+      - type: set_field
+        path: database.user
+        value: "prod-user"
+        description: "Use service account from secrets manager"
+      - type: set_field
+        path: database.password
+        value: "USE_SECRETS_MANAGER"
+        description: "Never commit passwords to version control"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+database:
+  enabled: true
+`)
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+
+	// Check that hints are shown in text output
+	if !strings.Contains(out, "hint:") {
+		t.Fatalf("expected remediation hints in output")
+	}
+	if !strings.Contains(out, "set_field") {
+		t.Fatalf("expected hint type in output")
+	}
+	if !strings.Contains(out, "database.user") {
+		t.Fatalf("expected field path in hint output")
+	}
+}
+
+func TestCLI_RemediationHintsInJSON(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: api-config
+    summary: "API key must be configured"
+    conditions:
+      - path: api.enabled
+        equals: true
+    requires:
+      - path: api.key
+        equals: null
+    remediation: "Set api.key"
+    remediation_hints:
+      - type: set_field
+        path: api.key
+        value: "LOAD_FROM_VAULT"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+api:
+  enabled: true
+`)
+
+	code, out := runCLI(t, []string{"-format", "json", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+
+	var report interface{}
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("expected valid JSON: %v", err)
+	}
+
+	reportMap := report.(map[string]interface{})
+	requirements := reportMap["requirements"].([]interface{})
+	if len(requirements) == 0 {
+		t.Fatalf("expected requirements in JSON")
+	}
+
+	req := requirements[0].(map[string]interface{})
+	if _, hasHints := req["remediation_hints"]; !hasHints {
+		t.Fatalf("expected remediation_hints in JSON output")
+	}
+
+	hints := req["remediation_hints"].([]interface{})
+	if len(hints) == 0 {
+		t.Fatalf("expected at least one hint")
+	}
+
+	hint := hints[0].(map[string]interface{})
+	if hint["type"] != "set_field" {
+		t.Fatalf("expected hint type in JSON")
+	}
+}
