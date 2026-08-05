@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -57,11 +58,143 @@ func fileHash(path string) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
+// BatchResult contains results for multiple values files
+type BatchResult struct {
+	Files []FileCheckResult `json:"files"`
+	Total struct {
+		Checked      int `json:"checked"`
+		Passed       int `json:"passed"`
+		Failed       int `json:"failed"`
+		NotApplicable int `json:"not_applicable"`
+	} `json:"total"`
+}
+
+// FileCheckResult contains the result for one values file
+type FileCheckResult struct {
+	Path              string `json:"path"`
+	Passed            bool   `json:"passed"`
+	RequirementsFailed int   `json:"requirements_failed"`
+	RequirementsTotal int   `json:"requirements_total"`
+}
+
+// runBatchCheck recursively finds and checks all values.yaml files in a directory
+func runBatchCheck(dirPath, requirementsPath, format, environment string, stdout, stderr *os.File) int {
+	// Load requirements once
+	rf, err := loadRequirements(requirementsPath)
+	if err != nil {
+		fmt.Fprintln(stderr, "error:", err)
+		return 2
+	}
+
+	// Find all values.yaml files
+	var valuesFiles []string
+	if err := findValuesFiles(dirPath, &valuesFiles); err != nil {
+		fmt.Fprintln(stderr, "error:", err)
+		return 2
+	}
+
+	if len(valuesFiles) == 0 {
+		fmt.Fprintln(stderr, "error: no values.yaml files found in", dirPath)
+		return 2
+	}
+
+	// Check each values file
+	batch := BatchResult{}
+	batch.Total.Checked = len(valuesFiles)
+
+	anyFailed := false
+	for _, valuesPath := range valuesFiles {
+		values, err := loadValues(valuesPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "warning: skipping %s: %v\n", valuesPath, err)
+			continue
+		}
+
+		failed := false
+		for _, r := range rf.Requirements {
+			res := evaluateRequirement(values, r)
+			if res.Applicable && !res.Satisfied {
+				failed = true
+				anyFailed = true
+			}
+		}
+
+		result := FileCheckResult{
+			Path:              valuesPath,
+			Passed:            !failed,
+			RequirementsTotal: len(rf.Requirements),
+		}
+
+		if failed {
+			batch.Total.Failed++
+			for _, r := range rf.Requirements {
+				res := evaluateRequirement(values, r)
+				if res.Applicable && !res.Satisfied {
+					result.RequirementsFailed++
+				}
+			}
+		} else {
+			batch.Total.Passed++
+		}
+		batch.Total.NotApplicable += len(rf.Requirements) - result.RequirementsTotal
+		batch.Files = append(batch.Files, result)
+	}
+
+	// Output results
+	if format == "json" {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(batch); err != nil {
+			fmt.Fprintln(stderr, "error encoding report:", err)
+			return 2
+		}
+	} else {
+		fmt.Fprintf(stdout, "Batch check: %d files, %d passed, %d failed\n", batch.Total.Checked, batch.Total.Passed, batch.Total.Failed)
+		for _, result := range batch.Files {
+			status := "✓ PASS"
+			if !result.Passed {
+				status = "✗ FAIL"
+			}
+			fmt.Fprintf(stdout, "  %s  %s\n", status, result.Path)
+			if !result.Passed {
+				fmt.Fprintf(stdout, "           (%d/%d requirements failed)\n", result.RequirementsFailed, result.RequirementsTotal)
+			}
+		}
+	}
+
+	if anyFailed {
+		return 1
+	}
+	return 0
+}
+
+// findValuesFiles recursively finds all values.yaml files in a directory
+func findValuesFiles(dir string, results *[]string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		if entry.IsDir() {
+			// Recurse into subdirectories
+			if err := findValuesFiles(path, results); err != nil {
+				return err
+			}
+		} else if entry.Name() == "values.yaml" {
+			*results = append(*results, path)
+		}
+	}
+	return nil
+}
+
 func run(args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("config-requirements-check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required unless -lint or -init)")
+	valuesPath := fs.String("values", "", "path to the values YAML file to inspect (required unless -lint, -init, or -values-dir)")
+	valuesDirPath := fs.String("values-dir", "", "path to directory with values files; recursively checks all values.yaml files found")
 	requirementsPath := fs.String("requirements", "config-requirements.yaml", "path to the requirements registry YAML file")
 	showFeaturesFlag := fs.Bool("features", false, "print resolved feature-gate states")
 	showCheckFlag := fs.Bool("check", false, "validate conditions/requires and report violations")
@@ -128,8 +261,17 @@ Exit codes:
 		return runLint(*requirementsPath, *format, stdout, stderr)
 	}
 
+	// Handle batch checking with -values-dir
+	if *valuesDirPath != "" {
+		if *valuesPath != "" {
+			fmt.Fprintln(stderr, "error: cannot use both -values and -values-dir")
+			return 2
+		}
+		return runBatchCheck(*valuesDirPath, *requirementsPath, *format, *environment, stdout, stderr)
+	}
+
 	if *valuesPath == "" {
-		fmt.Fprintln(stderr, "error: -values is required")
+		fmt.Fprintln(stderr, "error: -values or -values-dir is required")
 		return 2
 	}
 

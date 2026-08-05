@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -935,5 +937,141 @@ redis:
 	}
 	if !strings.Contains(out3, "redis-manual-setup") {
 		t.Fatalf("expected dependency to be listed in dev environment")
+	}
+}
+
+// ==== Improvement #7: Batch Checking Tests ====
+
+func TestCLI_BatchCheckWithValuesDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create requirements file
+	reqPath := writeTempFile(t, tmpDir, "config-requirements.yaml", `
+requirements:
+  - id: redis-check
+    summary: "Redis enabled requires cluster mode"
+    conditions:
+      - path: redis.enabled
+        equals: true
+    requires:
+      - path: redis.cluster_mode
+        equals: true
+`)
+
+	// Create subdirectories with values files
+	env1Dir := filepath.Join(tmpDir, "env1")
+	env2Dir := filepath.Join(tmpDir, "env2")
+	os.Mkdir(env1Dir, 0755)
+	os.Mkdir(env2Dir, 0755)
+
+	// Env1: valid (redis enabled with cluster mode)
+	writeTempFile(t, env1Dir, "values.yaml", `
+redis:
+  enabled: true
+  cluster_mode: true
+`)
+
+	// Env2: invalid (redis enabled but no cluster mode)
+	writeTempFile(t, env2Dir, "values.yaml", `
+redis:
+  enabled: true
+  cluster_mode: false
+`)
+
+	// Run batch check with text format
+	code, out := runCLI(t, []string{
+		"-values-dir", tmpDir,
+		"-requirements", reqPath,
+		"-format", "text",
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit 1 (one env failed), got %d", code)
+	}
+
+	if !strings.Contains(out, "Batch check:") {
+		t.Fatalf("expected batch check summary in output")
+	}
+	if !strings.Contains(out, "2 files") {
+		t.Fatalf("expected 2 files checked")
+	}
+	if !strings.Contains(out, "1 passed") {
+		t.Fatalf("expected 1 passed")
+	}
+	if !strings.Contains(out, "1 failed") {
+		t.Fatalf("expected 1 failed")
+	}
+}
+
+func TestCLI_BatchCheckJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	reqPath := writeTempFile(t, tmpDir, "config-requirements.yaml", `
+requirements:
+  - id: feature-check
+    summary: "Feature check"
+    conditions:
+      - path: feature.enabled
+        equals: true
+    requires:
+      - path: feature.configured
+        equals: true
+`)
+
+	// Create one passing and one failing environment
+	env1 := filepath.Join(tmpDir, "passing")
+	env2 := filepath.Join(tmpDir, "failing")
+	os.Mkdir(env1, 0755)
+	os.Mkdir(env2, 0755)
+
+	writeTempFile(t, env1, "values.yaml", `
+feature:
+  enabled: true
+  configured: true
+`)
+
+	writeTempFile(t, env2, "values.yaml", `
+feature:
+  enabled: true
+  configured: false
+`)
+
+	code, out := runCLI(t, []string{
+		"-values-dir", tmpDir,
+		"-requirements", reqPath,
+		"-format", "json",
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+
+	var batch interface{}
+	if err := json.Unmarshal([]byte(out), &batch); err != nil {
+		t.Fatalf("expected valid JSON, got error %v", err)
+	}
+
+	batchMap := batch.(map[string]interface{})
+	if _, hasFiles := batchMap["files"]; !hasFiles {
+		t.Fatalf("expected files array in batch result")
+	}
+	if _, hasTotal := batchMap["total"]; !hasTotal {
+		t.Fatalf("expected total in batch result")
+	}
+
+	files := batchMap["files"].([]interface{})
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files in batch result, got %d", len(files))
+	}
+
+	total := batchMap["total"].(map[string]interface{})
+	if total["checked"].(float64) != 2 {
+		t.Fatalf("expected 2 checked")
+	}
+	if total["passed"].(float64) != 1 {
+		t.Fatalf("expected 1 passed")
+	}
+	if total["failed"].(float64) != 1 {
+		t.Fatalf("expected 1 failed")
 	}
 }
