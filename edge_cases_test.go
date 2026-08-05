@@ -18,7 +18,7 @@ func TestNumericValues_IntegerCondition(t *testing.T) {
 		},
 	}
 	values := map[string]interface{}{
-		"api": map[string]interface{}{"version": 3},
+		"api":  map[string]interface{}{"version": 3},
 		"auth": map[string]interface{}{"provider": "oauth2"},
 	}
 	res := evaluateRequirement(values, req)
@@ -64,7 +64,7 @@ func TestNumericValues_FloatStringCast(t *testing.T) {
 	}
 	values := map[string]interface{}{
 		"threshold": 3.0,
-		"enabled": true,
+		"enabled":   true,
 	}
 	res := evaluateRequirement(values, req)
 	if !res.Satisfied {
@@ -85,7 +85,7 @@ func TestStringValues_ExactMatch(t *testing.T) {
 	}
 	values := map[string]interface{}{
 		"environment": map[string]interface{}{"type": "production"},
-		"tls": map[string]interface{}{"enforced": true},
+		"tls":         map[string]interface{}{"enforced": true},
 	}
 	res := evaluateRequirement(values, req)
 	if !res.Applicable || !res.Satisfied {
@@ -105,7 +105,7 @@ func TestStringValues_CaseSensitive(t *testing.T) {
 		},
 	}
 	values := map[string]interface{}{
-		"env": "production",  // lowercase
+		"env":      "production", // lowercase
 		"required": true,
 	}
 	res := evaluateRequirement(values, req)
@@ -191,7 +191,7 @@ func TestEmptyAndNullValues_NullVsUnset(t *testing.T) {
 
 	// Case 1: explicitly set to null
 	values1 := map[string]interface{}{
-		"setting": nil,
+		"setting":  nil,
 		"required": true,
 	}
 	res1 := evaluateRequirement(values1, req)
@@ -222,7 +222,7 @@ func TestEmptyAndNullValues_EmptyString(t *testing.T) {
 	}
 
 	values := map[string]interface{}{
-		"name": "",
+		"name":     "",
 		"required": true,
 	}
 	res := evaluateRequirement(values, req)
@@ -249,14 +249,14 @@ func TestMultipleConditionsAndRequires_ComplexScenario(t *testing.T) {
 
 	values := map[string]interface{}{
 		"database": map[string]interface{}{
-			"engine": "postgres",
+			"engine":  "postgres",
 			"version": 13,
 		},
 		"features": map[string]interface{}{
 			"caching": true,
 		},
 		"cache": map[string]interface{}{
-			"backend": "redis",
+			"backend":     "redis",
 			"persistence": true,
 		},
 		"monitoring": map[string]interface{}{
@@ -286,7 +286,7 @@ func TestMultipleConditionsAndRequires_PartiallyUnmet(t *testing.T) {
 
 	values := map[string]interface{}{
 		"feature": map[string]interface{}{"enabled": true},
-		"dep1": map[string]interface{}{"enabled": true},
+		"dep1":    map[string]interface{}{"enabled": true},
 		// dep2 unset
 		"dep3": map[string]interface{}{"enabled": false},
 	}
@@ -316,8 +316,8 @@ func TestFeatureStates_MixedTypes(t *testing.T) {
 
 	values := map[string]interface{}{
 		"bool": map[string]interface{}{"flag": true},
-		"num": map[string]interface{}{"value": 42},
-		"str": map[string]interface{}{"value": "active"},
+		"num":  map[string]interface{}{"value": 42},
+		"str":  map[string]interface{}{"value": "active"},
 	}
 
 	states := featureStates(values, reqs)
@@ -456,8 +456,8 @@ func TestConditionHolds_NumericStringMatch(t *testing.T) {
 // Note: valuesEqual uses Sprintf which means true and "true" both become "true".
 func TestValuesEqual_StringFormatComparison(t *testing.T) {
 	tests := []struct {
-		actual interface{}
-		expected interface{}
+		actual      interface{}
+		expected    interface{}
 		shouldMatch bool
 	}{
 		{true, true, true},
@@ -465,11 +465,11 @@ func TestValuesEqual_StringFormatComparison(t *testing.T) {
 		{1, 1, true},
 		{1.0, 1.0, true},
 		{"hello", "hello", true},
-		{true, "true", true},  // Both format to "true"
-		{1, "1", true},        // Both format to "1"
+		{true, "true", true}, // Both format to "true"
+		{1, "1", true},       // Both format to "1"
 		{nil, nil, true},
-		{0, false, false},     // "0" != "false"
-		{1, true, false},      // "1" != "true"
+		{0, false, false}, // "0" != "false"
+		{1, true, false},  // "1" != "true"
 	}
 
 	for i, tt := range tests {
@@ -487,7 +487,7 @@ func TestLintRequirements_MissingSummary(t *testing.T) {
 		Requirements: []Requirement{
 			{
 				ID:         "test",
-				Summary:    "",  // missing
+				Summary:    "", // missing
 				Conditions: []Condition{{Path: "a", Equals: true}},
 				Requires:   []Condition{{Path: "b", Equals: true}},
 			},
@@ -511,10 +511,10 @@ func TestApplicableDependencies_NoConditionsHold(t *testing.T) {
 		Requires: []Condition{},
 		ExternalDependencies: []ExternalDependency{
 			{
-				ID: "kafka-topic",
+				ID:          "kafka-topic",
 				Description: "Topic must exist",
-				Owner: "kafka-team",
-				Verify: Verify{Type: "manual"},
+				Owner:       "kafka-team",
+				Verify:      Verify{Type: "manual"},
 			},
 		},
 	}
@@ -541,10 +541,10 @@ func TestApplicableDependencies_WithPartialRequirements(t *testing.T) {
 		},
 		ExternalDependencies: []ExternalDependency{
 			{
-				ID: "external-thing",
+				ID:          "external-thing",
 				Description: "Must be configured",
-				Owner: "other-team",
-				Verify: Verify{Type: "manual"},
+				Owner:       "other-team",
+				Verify:      Verify{Type: "manual"},
 			},
 		},
 	}
@@ -615,7 +615,7 @@ func TestPathLookup_WithMixedNesting(t *testing.T) {
 	}
 
 	tests := []struct {
-		path string
+		path        string
 		shouldExist bool
 	}{
 		{"config.services.api.port", true},
@@ -678,7 +678,7 @@ requirements:
       - path: required
         equals: true
 `)
-	valuesPath := writeTempFile(t, dir, "values.yaml", "")  // Empty file
+	valuesPath := writeTempFile(t, dir, "values.yaml", "") // Empty file
 
 	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
 	if code != 0 {
@@ -694,14 +694,14 @@ func TestMultipleRequirements_IndependentTracking(t *testing.T) {
 	rf := &RequirementsFile{
 		Requirements: []Requirement{
 			{
-				ID: "first",
+				ID:         "first",
 				Conditions: []Condition{{Path: "a", Equals: true}},
-				Requires: []Condition{{Path: "x", Equals: true}},
+				Requires:   []Condition{{Path: "x", Equals: true}},
 			},
 			{
-				ID: "second",
+				ID:         "second",
 				Conditions: []Condition{{Path: "b", Equals: true}},
-				Requires: []Condition{{Path: "y", Equals: true}},
+				Requires:   []Condition{{Path: "y", Equals: true}},
 			},
 		},
 	}

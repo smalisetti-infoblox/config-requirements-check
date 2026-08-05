@@ -76,17 +76,17 @@ func TestSemverCompare_Prerelease(t *testing.T) {
 
 func TestIsSemver(t *testing.T) {
 	tests := []struct {
-		version string
+		version  string
 		expected bool
 	}{
 		{"1.2.3", true},
 		{"2.0.0", true},
 		{"1.0.0-alpha", true},
 		{"1.2.3-rc.1", true},
-		{"1", false},           // no dot
-		{"1.2", true},          // minor.patch
+		{"1", false},             // no dot
+		{"1.2", true},            // minor.patch
 		{"not.a.version", false}, // non-numeric
-		{"1.2.a", false},       // non-numeric patch
+		{"1.2.a", false},         // non-numeric patch
 	}
 
 	for _, tt := range tests {
@@ -170,8 +170,8 @@ func TestFeatureStates_StringBooleans(t *testing.T) {
 	}
 
 	values := map[string]interface{}{
-		"bool_value":   true,     // Actual boolean
-		"string_value": "true",   // String "true"
+		"bool_value":   true,   // Actual boolean
+		"string_value": "true", // String "true"
 	}
 
 	states := featureStates(values, reqs)
@@ -200,8 +200,8 @@ func TestFeatureStates_StringBooleansFalse(t *testing.T) {
 	}
 
 	values := map[string]interface{}{
-		"disabled_bool":   false,     // Actual boolean false
-		"disabled_string": "false",   // String "false"
+		"disabled_bool":   false,   // Actual boolean false
+		"disabled_string": "false", // String "false"
 	}
 
 	states := featureStates(values, reqs)
@@ -232,9 +232,9 @@ func TestFeatureStates_StringBooleansCaseInsensitive(t *testing.T) {
 
 	// Test case variations: "True", "TRUE", "False", "FALSE"
 	values := map[string]interface{}{
-		"value1": "True",   // Capitalized
-		"value2": "TRUE",   // All caps
-		"value3": "FALSE",  // All caps false
+		"value1": "True",  // Capitalized
+		"value2": "TRUE",  // All caps
+		"value3": "FALSE", // All caps false
 	}
 
 	states := featureStates(values, reqs)
@@ -516,8 +516,8 @@ func TestConditionHolds_WithContains(t *testing.T) {
 	// CORS enabled with allowed origin
 	values1 := map[string]interface{}{
 		"cors": map[string]interface{}{
-			"enabled":           true,
-			"allowed_origins":   []interface{}{"https://example.com", "https://localhost"},
+			"enabled":         true,
+			"allowed_origins": []interface{}{"https://example.com", "https://localhost"},
 		},
 	}
 	res1 := evaluateRequirement(values1, req)
@@ -568,12 +568,12 @@ func TestLintRequirements_ValidOperators(t *testing.T) {
 	rf := &RequirementsFile{
 		Requirements: []Requirement{
 			{
-				ID: "gte-check",
+				ID:         "gte-check",
 				Conditions: []Condition{{Path: "version", Gte: 3}},
 				Requires:   []Condition{{Path: "feature", Equals: true}},
 			},
 			{
-				ID: "array-check",
+				ID:         "array-check",
 				Conditions: []Condition{{Path: "list", Contains: "item"}},
 				Requires:   []Condition{{Path: "enabled", Equals: true}},
 			},
@@ -915,10 +915,10 @@ func TestConditionHolds_UnlessWithMultipleConditions(t *testing.T) {
 	// Valid: auth enabled, neither forbidden mode enabled
 	values1 := map[string]interface{}{
 		"auth": map[string]interface{}{
-			"enabled":         true,
-			"mfa_only":        false,
-			"legacy_method":   false,
-			"provider":        "oauth2",
+			"enabled":       true,
+			"mfa_only":      false,
+			"legacy_method": false,
+			"provider":      "oauth2",
 		},
 	}
 	res1 := evaluateRequirement(values1, req)
@@ -929,10 +929,10 @@ func TestConditionHolds_UnlessWithMultipleConditions(t *testing.T) {
 	// Invalid: mfa_only is forbidden
 	values2 := map[string]interface{}{
 		"auth": map[string]interface{}{
-			"enabled":         true,
-			"mfa_only":        true,  // FORBIDDEN!
-			"legacy_method":   false,
-			"provider":        "oauth2",
+			"enabled":       true,
+			"mfa_only":      true, // FORBIDDEN!
+			"legacy_method": false,
+			"provider":      "oauth2",
 		},
 	}
 	res2 := evaluateRequirement(values2, req)

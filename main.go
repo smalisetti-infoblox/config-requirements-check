@@ -8,8 +8,8 @@
 package main
 
 import (
-	_ "embed"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -30,9 +30,9 @@ var starterTemplate string
 
 // Metadata contains audit trail information about the check execution.
 type Metadata struct {
-	Timestamp            string `json:"timestamp"`           // ISO8601 timestamp of execution
-	RequirementsFileHash string `json:"requirements_hash"`   // SHA256 hash of requirements file
-	ValuesFileHash       string `json:"values_hash"`         // SHA256 hash of values file
+	Timestamp            string `json:"timestamp"`         // ISO8601 timestamp of execution
+	RequirementsFileHash string `json:"requirements_hash"` // SHA256 hash of requirements file
+	ValuesFileHash       string `json:"values_hash"`       // SHA256 hash of values file
 }
 
 // Report is the full, flag-filtered result of one run, shared by the text
@@ -62,19 +62,19 @@ func fileHash(path string) (string, error) {
 type BatchResult struct {
 	Files []FileCheckResult `json:"files"`
 	Total struct {
-		Checked      int `json:"checked"`
-		Passed       int `json:"passed"`
-		Failed       int `json:"failed"`
+		Checked       int `json:"checked"`
+		Passed        int `json:"passed"`
+		Failed        int `json:"failed"`
 		NotApplicable int `json:"not_applicable"`
 	} `json:"total"`
 }
 
 // FileCheckResult contains the result for one values file
 type FileCheckResult struct {
-	Path              string `json:"path"`
-	Passed            bool   `json:"passed"`
-	RequirementsFailed int   `json:"requirements_failed"`
-	RequirementsTotal int   `json:"requirements_total"`
+	Path               string `json:"path"`
+	Passed             bool   `json:"passed"`
+	RequirementsFailed int    `json:"requirements_failed"`
+	RequirementsTotal  int    `json:"requirements_total"`
 }
 
 // runBatchCheck recursively finds and checks all values.yaml files in a directory

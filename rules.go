@@ -101,12 +101,12 @@ func parseSemver(vstr string) semver {
 type Condition struct {
 	Path      string      `yaml:"path" json:"path"`
 	Equals    interface{} `yaml:"equals,omitempty" json:"equals,omitempty"`
-	Gte       interface{} `yaml:"gte,omitempty" json:"gte,omitempty"`       // >= comparison
-	Gt        interface{} `yaml:"gt,omitempty" json:"gt,omitempty"`         // > comparison
-	Lte       interface{} `yaml:"lte,omitempty" json:"lte,omitempty"`       // <= comparison
-	Lt        interface{} `yaml:"lt,omitempty" json:"lt,omitempty"`         // < comparison
-	Contains  interface{} `yaml:"contains,omitempty" json:"contains,omitempty"` // array membership
-	Between   *Between    `yaml:"between,omitempty" json:"between,omitempty"`   // range validation (min <= value <= max)
+	Gte       interface{} `yaml:"gte,omitempty" json:"gte,omitempty"`               // >= comparison
+	Gt        interface{} `yaml:"gt,omitempty" json:"gt,omitempty"`                 // > comparison
+	Lte       interface{} `yaml:"lte,omitempty" json:"lte,omitempty"`               // <= comparison
+	Lt        interface{} `yaml:"lt,omitempty" json:"lt,omitempty"`                 // < comparison
+	Contains  interface{} `yaml:"contains,omitempty" json:"contains,omitempty"`     // array membership
+	Between   *Between    `yaml:"between,omitempty" json:"between,omitempty"`       // range validation (min <= value <= max)
 	NotEquals interface{} `yaml:"not_equals,omitempty" json:"not_equals,omitempty"` // negation operator
 }
 
@@ -160,13 +160,13 @@ type Reference struct {
 
 // RemediationHint provides machine-parseable guidance on how to fix a misconfigured requirement.
 type RemediationHint struct {
-	Type        string      `yaml:"type" json:"type"`   // set_field, remove_field, etc.
-	Path        string      `yaml:"path" json:"path"`   // Field to modify
+	Type        string      `yaml:"type" json:"type"` // set_field, remove_field, etc.
+	Path        string      `yaml:"path" json:"path"` // Field to modify
 	Value       interface{} `yaml:"value,omitempty" json:"value,omitempty"`
 	Description string      `yaml:"description,omitempty" json:"description,omitempty"`
 	// Conditional hints: only show if a path matches a condition
-	IfPath      string      `yaml:"if_path,omitempty" json:"if_path,omitempty"`       // Only show if this path...
-	IfCondition *Condition  `yaml:"if_condition,omitempty" json:"if_condition,omitempty"` // ...matches this condition
+	IfPath      string     `yaml:"if_path,omitempty" json:"if_path,omitempty"`           // Only show if this path...
+	IfCondition *Condition `yaml:"if_condition,omitempty" json:"if_condition,omitempty"` // ...matches this condition
 }
 
 // Requirement describes one conditional config rule: if all Conditions
@@ -500,16 +500,16 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 // RequirementResult is the outcome of evaluating one requirement against a
 // values file.
 type RequirementResult struct {
-	ID                string                 `json:"id"`
-	Summary           string                 `json:"summary"`
-	Applicable        bool                   `json:"applicable"`
-	Satisfied         bool                   `json:"satisfied"`
-	Severity          string                 `json:"severity,omitempty"`           // error (default), warn, or info
-	UnmetPaths        []string               `json:"unmet_paths,omitempty"`
-	Remediation       string                 `json:"remediation,omitempty"`
-	RemediationHints  []RemediationHint      `json:"remediation_hints,omitempty"`
-	References        []Reference            `json:"references,omitempty"`
-	ActualValues      map[string]interface{} `json:"actual_values,omitempty"` // Values for all paths referenced in conditions/requires
+	ID               string                 `json:"id"`
+	Summary          string                 `json:"summary"`
+	Applicable       bool                   `json:"applicable"`
+	Satisfied        bool                   `json:"satisfied"`
+	Severity         string                 `json:"severity,omitempty"` // error (default), warn, or info
+	UnmetPaths       []string               `json:"unmet_paths,omitempty"`
+	Remediation      string                 `json:"remediation,omitempty"`
+	RemediationHints []RemediationHint      `json:"remediation_hints,omitempty"`
+	References       []Reference            `json:"references,omitempty"`
+	ActualValues     map[string]interface{} `json:"actual_values,omitempty"` // Values for all paths referenced in conditions/requires
 }
 
 // evaluateRequirement checks all Conditions (AND). If they don't all hold,
@@ -526,13 +526,13 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 				severity = "error"
 			}
 			return RequirementResult{
-				ID:           r.ID,
-				Summary:      r.Summary,
-				Applicable:   false,
-				Satisfied:    true,
-				Severity:     severity,
-				Remediation:  r.Remediation,
-				References:   r.References,
+				ID:          r.ID,
+				Summary:     r.Summary,
+				Applicable:  false,
+				Satisfied:   true,
+				Severity:    severity,
+				Remediation: r.Remediation,
+				References:  r.References,
 			}
 		}
 	}
@@ -544,11 +544,11 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 	}
 
 	res := RequirementResult{
-		ID:           r.ID,
-		Summary:      r.Summary,
-		Severity:     severity,
-		Remediation:  r.Remediation,
-		References:   r.References,
+		ID:          r.ID,
+		Summary:     r.Summary,
+		Severity:    severity,
+		Remediation: r.Remediation,
+		References:  r.References,
 	}
 
 	// Collect all paths referenced in conditions, unless, and requires
