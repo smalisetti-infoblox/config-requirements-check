@@ -226,11 +226,41 @@ Flags:
 		fs.PrintDefaults()
 		fmt.Fprint(out, `
 Examples:
-  config-requirements-check -init > config-requirements.yaml
-  config-requirements-check -lint -requirements config-requirements.yaml
-  config-requirements-check -values envs/us-dev-2/values.yaml
-  config-requirements-check -values envs/prod/values.yaml -environment prod
-  config-requirements-check -check -deps -format json -values envs/us-dev-2/values.yaml
+
+  GETTING STARTED
+    config-requirements-check -init > config-requirements.yaml
+    config-requirements-check -lint -requirements config-requirements.yaml
+
+  SINGLE FILE CHECKS
+    config-requirements-check -values envs/prod/values.yaml
+    config-requirements-check -values envs/dev/values.yaml -check
+    config-requirements-check -values envs/staging/values.yaml -features
+
+  ENVIRONMENT-SPECIFIC VALIDATION
+    config-requirements-check -values envs/prod/values.yaml -environment prod -deps
+    config-requirements-check -values envs/dev/values.yaml -environment dev -deps
+
+  FILTER TO SINGLE REQUIREMENT
+    config-requirements-check -values envs/prod/values.yaml -feature redis-cluster-required
+    config-requirements-check -values values.yaml -feature cache-timeout-threshold -format json
+
+  OUTPUT FORMATS
+    config-requirements-check -values values.yaml -format text
+    config-requirements-check -values values.yaml -format json | jq .
+
+  BATCH CHECKING (MONOREPOS)
+    config-requirements-check -values-dir envs/
+    config-requirements-check -values-dir envs/ -format json > batch-report.json
+
+  COMPLEX CI/CD PATTERNS
+    config-requirements-check -lint && config-requirements-check -values-dir envs/ -check -deps
+    config-requirements-check -values prod/values.yaml -environment prod -check -deps -format json
+    config-requirements-check -values-dir envs/ -environment prod -format json
+
+  FULL CAPABILITY TEST (all output modes)
+    config-requirements-check -values values.yaml -check -features -deps
+    config-requirements-check -values values.yaml -check -features -deps -format json
+    config-requirements-check -values values.yaml -requirements custom-requirements.yaml -format json
 
 Exit codes:
   0  no violations found (or -features/-deps/-lint/-init ran successfully)
