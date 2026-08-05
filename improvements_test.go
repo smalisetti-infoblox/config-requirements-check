@@ -155,6 +155,110 @@ func TestConditionHolds_WithSemver(t *testing.T) {
 	}
 }
 
+// ==== Boolean String Support Tests ====
+
+func TestFeatureStates_StringBooleans(t *testing.T) {
+	reqs := []Requirement{
+		{
+			ID: "test",
+			Conditions: []Condition{
+				{Path: "bool_value", Equals: true},
+				{Path: "string_value", Equals: "true"},
+			},
+			Requires: []Condition{},
+		},
+	}
+
+	values := map[string]interface{}{
+		"bool_value":   true,     // Actual boolean
+		"string_value": "true",   // String "true"
+	}
+
+	states := featureStates(values, reqs)
+	if len(states) != 2 {
+		t.Fatalf("expected 2 feature states, got %d", len(states))
+	}
+
+	// Both should be labeled as "enabled" (not "set")
+	for _, s := range states {
+		if s.Status != "enabled" {
+			t.Fatalf("expected %s to be labeled 'enabled', got '%s'", s.Path, s.Status)
+		}
+	}
+}
+
+func TestFeatureStates_StringBooleansFalse(t *testing.T) {
+	reqs := []Requirement{
+		{
+			ID: "test",
+			Conditions: []Condition{
+				{Path: "disabled_bool", Equals: false},
+				{Path: "disabled_string", Equals: "false"},
+			},
+			Requires: []Condition{},
+		},
+	}
+
+	values := map[string]interface{}{
+		"disabled_bool":   false,     // Actual boolean false
+		"disabled_string": "false",   // String "false"
+	}
+
+	states := featureStates(values, reqs)
+	if len(states) != 2 {
+		t.Fatalf("expected 2 feature states, got %d", len(states))
+	}
+
+	// Both should be labeled as "disabled"
+	for _, s := range states {
+		if s.Status != "disabled" {
+			t.Fatalf("expected %s to be labeled 'disabled', got '%s'", s.Path, s.Status)
+		}
+	}
+}
+
+func TestFeatureStates_StringBooleansCaseInsensitive(t *testing.T) {
+	reqs := []Requirement{
+		{
+			ID: "test",
+			Conditions: []Condition{
+				{Path: "value1", Equals: true},
+				{Path: "value2", Equals: true},
+				{Path: "value3", Equals: false},
+			},
+			Requires: []Condition{},
+		},
+	}
+
+	// Test case variations: "True", "TRUE", "False", "FALSE"
+	values := map[string]interface{}{
+		"value1": "True",   // Capitalized
+		"value2": "TRUE",   // All caps
+		"value3": "FALSE",  // All caps false
+	}
+
+	states := featureStates(values, reqs)
+	if len(states) != 3 {
+		t.Fatalf("expected 3 feature states, got %d", len(states))
+	}
+
+	// Check labels
+	statusMap := make(map[string]string)
+	for _, s := range states {
+		statusMap[s.Path] = s.Status
+	}
+
+	if statusMap["value1"] != "enabled" {
+		t.Fatalf("expected value1='True' to be enabled, got %s", statusMap["value1"])
+	}
+	if statusMap["value2"] != "enabled" {
+		t.Fatalf("expected value2='TRUE' to be enabled, got %s", statusMap["value2"])
+	}
+	if statusMap["value3"] != "disabled" {
+		t.Fatalf("expected value3='FALSE' to be disabled, got %s", statusMap["value3"])
+	}
+}
+
 func TestCLI_SemanticVersionComparison(t *testing.T) {
 	dir := t.TempDir()
 	reqPath := writeTempFile(t, dir, "req.yaml", `

@@ -427,14 +427,35 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 			states = append(states, FeatureState{Path: p, Status: "unset"})
 			continue
 		}
+
+		// Check if value is a boolean (or string "true"/"false")
+		var isBool bool
+		var boolValue bool
+
 		if b, ok := v.(bool); ok {
-			if b {
+			isBool = true
+			boolValue = b
+		} else if s, ok := v.(string); ok {
+			// Accept string "true"/"false" as booleans (case-insensitive)
+			lower := strings.ToLower(s)
+			if lower == "true" {
+				isBool = true
+				boolValue = true
+			} else if lower == "false" {
+				isBool = true
+				boolValue = false
+			}
+		}
+
+		if isBool {
+			if boolValue {
 				states = append(states, FeatureState{Path: p, Status: "enabled", Value: v})
 			} else {
 				states = append(states, FeatureState{Path: p, Status: "disabled", Value: v})
 			}
 			continue
 		}
+
 		states = append(states, FeatureState{Path: p, Status: "set", Value: v})
 	}
 	return states
