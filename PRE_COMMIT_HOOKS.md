@@ -217,6 +217,45 @@ All flags must be documented in help text
 # Fix: Add flag to Examples section in main.go
 ```
 
+#### check-starter-yaml-sync - Sync Starter Template with New Features
+```bash
+# What it does:
+- Detects when new requirements are added to config files
+- Verifies starter.yaml includes examples of new requirements
+- Prevents incomplete starter templates
+
+# Failure:
+❌ New requirement found: array-support
+   This requirement is in config-requirements.yaml 
+   but NOT in examples/starter.yaml
+
+# Action required:
+- Add the new requirement to examples/starter.yaml
+- Include comments explaining the feature
+- Show how to use it with practical examples
+
+# Example:
+  # Example 2: Array membership check (NEW - Improvement #2)
+  # contains operator for checking array membership
+  - id: cors-origin-check
+    summary: >
+      If CORS is enabled, must allow example.com as origin.
+    conditions:
+      - path: cors.enabled
+        equals: true
+    requires:
+      - path: cors.allowed_origins
+        contains: "https://example.com"
+    remediation: >
+      Add "https://example.com" to cors.allowed_origins array.
+```
+
+Why this matters:
+- Starter template must show all available features
+- New users learn from the starter template
+- Examples demonstrate best practices
+- Template stays up-to-date as features evolve
+
 ---
 
 ### 4. **Code Quality Hooks** (Warn or Block)

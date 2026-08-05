@@ -162,3 +162,12 @@ repos:
         language: system
         pass_filenames: false
         stages: [commit]
+
+      # Ensure starter.yaml is updated with new features
+      - id: check-starter-yaml-sync
+        name: Sync starter.yaml with new features
+        description: Ensure starter.yaml is updated when new requirements are added
+        entry: bash -c './.git/hooks/check-starter-yaml-sync.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit]

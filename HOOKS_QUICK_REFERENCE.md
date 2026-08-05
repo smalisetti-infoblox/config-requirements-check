@@ -26,10 +26,11 @@ $ git commit -m "Add new feature"
   - race-detector: No data races
   - coverage-threshold: Coverage >= 70%
   
-⚠️  Documentation (warns you)
+⚠️  Documentation (warns or blocks)
   - require-docs: Documentation files updated?
   - verify-help-output: Help text includes new flags?
   - verify-examples: Example files valid?
+  - check-starter-yaml-sync: Starter template updated with new features?
   
 ✅ Code Quality (must pass)
   - no-debug-statements: No println/fmt.Println
@@ -50,6 +51,7 @@ $ git commit -m "Add new feature"
 | Debug println left in | Remove `fmt.Println()` statements |
 | TODO without issue ref | Change `// TODO` to `// TODO: (#123)` |
 | Undocumented flag | Add to help text in main.go |
+| New requirement not in starter.yaml | Add example to `examples/starter.yaml` |
 | Test coverage dropped | Write more tests for new code |
 | Commit message too short | Use at least 10 characters, be descriptive |
 | Error message quality | Start with lowercase: `"value is invalid"` not `"Error"` |
