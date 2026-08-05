@@ -831,3 +831,109 @@ api:
 		t.Fatalf("expected hint type in JSON")
 	}
 }
+
+// ==== Improvement #6: Environment-Scoped Dependency Skips Tests ====
+
+func TestApplicableDependencies_SkipInEnvironments(t *testing.T) {
+	req := Requirement{
+		ID: "kafka-setup",
+		Conditions: []Condition{
+			{Path: "kafka.enabled", Equals: true},
+		},
+		Requires: []Condition{},
+		ExternalDependencies: []ExternalDependency{
+			{
+				ID:                 "kafka-topic",
+				Description:        "Topic must exist",
+				Owner:              "platform-kafka",
+				Verify:             Verify{Type: "manual"},
+				SkipInEnvironments: []string{"prod", "staging"}, // Skip in these envs
+			},
+		},
+	}
+
+	values := map[string]interface{}{
+		"kafka": map[string]interface{}{"enabled": true},
+	}
+
+	// With no environment specified, dependency is listed
+	deps1 := applicableDependencies(values, []Requirement{req}, "")
+	if len(deps1) != 1 {
+		t.Fatalf("expected dependency with empty environment")
+	}
+
+	// With prod environment, dependency is skipped
+	deps2 := applicableDependencies(values, []Requirement{req}, "prod")
+	if len(deps2) != 0 {
+		t.Fatalf("expected dependency to be skipped in prod, got %v", deps2)
+	}
+
+	// With staging environment, dependency is skipped
+	deps3 := applicableDependencies(values, []Requirement{req}, "staging")
+	if len(deps3) != 0 {
+		t.Fatalf("expected dependency to be skipped in staging")
+	}
+
+	// With dev environment, dependency is listed
+	deps4 := applicableDependencies(values, []Requirement{req}, "dev")
+	if len(deps4) != 1 {
+		t.Fatalf("expected dependency to be listed in dev")
+	}
+}
+
+func TestCLI_EnvironmentFlagSkipsDependencies(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: redis-setup
+    summary: "Redis must be configured"
+    conditions:
+      - path: redis.enabled
+        equals: true
+    requires:
+      - path: redis.cluster_enabled
+        equals: true
+    external_dependencies:
+      - id: redis-manual-setup
+        description: "Redis cluster must be manually set up"
+        owner: "platform-team"
+        skip_in_environments: ["prod", "staging"]
+        verify:
+          type: manual
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+redis:
+  enabled: true
+  cluster_enabled: true
+`)
+
+	// Without environment flag, dependency should be listed
+	code1, out1 := runCLI(t, []string{"-deps", "-values", valuesPath, "-requirements", reqPath})
+	if code1 != 0 {
+		t.Fatalf("expected exit 0, got %d", code1)
+	}
+	if !strings.Contains(out1, "redis-manual-setup") {
+		t.Fatalf("expected dependency to be listed without environment flag")
+	}
+
+	// With prod environment, dependency should be skipped
+	code2, out2 := runCLI(t, []string{"-deps", "-environment", "prod", "-values", valuesPath, "-requirements", reqPath})
+	if code2 != 0 {
+		t.Fatalf("expected exit 0, got %d", code2)
+	}
+	if strings.Contains(out2, "redis-manual-setup") {
+		t.Fatalf("expected dependency to be skipped in prod environment")
+	}
+	if !strings.Contains(out2, "(none apply)") {
+		t.Fatalf("expected 'none apply' message in prod")
+	}
+
+	// With dev environment, dependency should be listed
+	code3, out3 := runCLI(t, []string{"-deps", "-environment", "dev", "-values", valuesPath, "-requirements", reqPath})
+	if code3 != 0 {
+		t.Fatalf("expected exit 0, got %d", code3)
+	}
+	if !strings.Contains(out3, "redis-manual-setup") {
+		t.Fatalf("expected dependency to be listed in dev environment")
+	}
+}

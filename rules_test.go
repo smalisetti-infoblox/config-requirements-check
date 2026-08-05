@@ -155,7 +155,7 @@ func TestApplicableDependencies(t *testing.T) {
 	values := map[string]interface{}{
 		"redis": map[string]interface{}{"enabled": true},
 	}
-	deps := applicableDependencies(values, reqs)
+	deps := applicableDependencies(values, reqs, "")
 	if len(deps) != 1 || deps[0].ID != "kafka-topic" {
 		t.Fatalf("expected 1 dependency for applicable requirement, got %v", deps)
 	}
@@ -167,7 +167,7 @@ func TestApplicableDependencies(t *testing.T) {
 	values2 := map[string]interface{}{
 		"redis": map[string]interface{}{"enabled": false},
 	}
-	deps2 := applicableDependencies(values2, reqs)
+	deps2 := applicableDependencies(values2, reqs, "")
 	if len(deps2) != 0 {
 		t.Fatalf("expected no dependencies when conditions don't hold, got %v", deps2)
 	}
@@ -181,7 +181,7 @@ func TestApplicableDependencies_KnownImplementations(t *testing.T) {
 	values := map[string]interface{}{
 		"redis": map[string]interface{}{"enabled": true},
 	}
-	deps := applicableDependencies(values, []Requirement{req})
+	deps := applicableDependencies(values, []Requirement{req}, "")
 	if len(deps) != 1 || len(deps[0].KnownImplementations) != 1 {
 		t.Fatalf("expected 1 known implementation, got %+v", deps)
 	}

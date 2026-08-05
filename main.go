@@ -68,6 +68,7 @@ func run(args []string, stdout, stderr *os.File) int {
 	showDepsFlag := fs.Bool("deps", false, "print external-dependency checklist")
 	featureID := fs.String("feature", "", "restrict output to a single requirement id")
 	format := fs.String("format", "text", "output format: text|json")
+	environment := fs.String("environment", "", "environment name (e.g., 'prod', 'staging'); skips dependencies marked skip_in_environments")
 	lint := fs.Bool("lint", false, "validate the requirements registry's own schema/structure and exit; no -values needed")
 	initFlag := fs.Bool("init", false, "print a starter config-requirements.yaml to stdout and exit; no -values or -requirements needed")
 
@@ -95,6 +96,7 @@ Examples:
   config-requirements-check -init > config-requirements.yaml
   config-requirements-check -lint -requirements config-requirements.yaml
   config-requirements-check -values envs/us-dev-2/values.yaml
+  config-requirements-check -values envs/prod/values.yaml -environment prod
   config-requirements-check -check -deps -format json -values envs/us-dev-2/values.yaml
 
 Exit codes:
@@ -194,7 +196,7 @@ Exit codes:
 		}
 	}
 	if showDeps {
-		report.Dependencies = applicableDependencies(values, reqs)
+		report.Dependencies = applicableDependencies(values, reqs, *environment)
 	}
 
 	if *format == "json" {

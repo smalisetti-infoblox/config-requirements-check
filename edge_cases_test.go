@@ -523,7 +523,7 @@ func TestApplicableDependencies_NoConditionsHold(t *testing.T) {
 		"enabled": false,
 	}
 
-	deps := applicableDependencies(values, []Requirement{req})
+	deps := applicableDependencies(values, []Requirement{req}, "")
 	if len(deps) != 0 {
 		t.Fatalf("dependencies should not be listed when conditions don't hold")
 	}
@@ -554,7 +554,7 @@ func TestApplicableDependencies_WithPartialRequirements(t *testing.T) {
 		// "required" is unset, so requirement will be unsatisfied
 	}
 
-	deps := applicableDependencies(values, []Requirement{req})
+	deps := applicableDependencies(values, []Requirement{req}, "")
 	if len(deps) != 1 {
 		t.Fatalf("dependencies should be listed when conditions hold, even if requires unset")
 	}

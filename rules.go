@@ -53,6 +53,7 @@ type ExternalDependency struct {
 	Description          string                `yaml:"description" json:"description"`
 	Owner                string                `yaml:"owner" json:"owner"`
 	Verify               Verify                `yaml:"verify" json:"verify"`
+	SkipInEnvironments   []string              `yaml:"skip_in_environments,omitempty" json:"skip_in_environments,omitempty"`
 	KnownImplementations []KnownImplementation `yaml:"known_implementations,omitempty" json:"known_implementations,omitempty"`
 }
 
@@ -396,7 +397,8 @@ type DependencyEntry struct {
 // requirement whose Conditions currently hold, regardless of whether its
 // Requires are satisfied — the checklist is about "you're using this
 // feature," not "you configured it correctly."
-func applicableDependencies(values map[string]interface{}, reqs []Requirement) []DependencyEntry {
+// If environment is specified, skips dependencies that list it in skip_in_environments.
+func applicableDependencies(values map[string]interface{}, reqs []Requirement, environment string) []DependencyEntry {
 	var deps []DependencyEntry
 	for _, r := range reqs {
 		applies := true
@@ -410,6 +412,18 @@ func applicableDependencies(values map[string]interface{}, reqs []Requirement) [
 			continue
 		}
 		for _, d := range r.ExternalDependencies {
+			// Skip dependencies marked for this environment
+			shouldSkip := false
+			for _, skipEnv := range d.SkipInEnvironments {
+				if skipEnv == environment {
+					shouldSkip = true
+					break
+				}
+			}
+			if shouldSkip {
+				continue
+			}
+
 			deps = append(deps, DependencyEntry{
 				RequirementID:        r.ID,
 				ID:                   d.ID,
