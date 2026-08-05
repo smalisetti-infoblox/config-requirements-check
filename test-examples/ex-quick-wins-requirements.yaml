@@ -1,0 +1,180 @@
+# Quick-Win Improvements Demo
+# Tests all 5 quick-win improvements:
+# 1. Range validation (between operator)
+# 2. Negation operators (not_equals)
+# 3. Severity levels (error/warn/info)
+# 4. Conditional skipping (skip_if)
+# 5. Conditional remediation hints
+
+requirements:
+  # Quick-Win #1: Range Validation (between operator)
+  - id: port-range-between
+    summary: >
+      Validate port is within acceptable range using between operator.
+      Cleaner than separate gte/lte checks.
+    requires:
+      - path: server.port
+        between:
+          min: 1024
+          max: 65535
+    remediation: >
+      Set server.port to a value between 1024 and 65535.
+    remediation_hints:
+      - type: set_field
+        path: server.port
+        value: 8080
+        description: Standard HTTP alt port
+
+  # Quick-Win #2: Negation Operator (not_equals)
+  - id: api-version-not-deprecated
+    summary: >
+      API version must NOT be the deprecated v1.
+      Using not_equals is clearer than unless for simple negation.
+    requires:
+      - path: api.version
+        not_equals: "1.0.0"
+    remediation: >
+      Upgrade api.version from v1 to v2 or later.
+
+  # Quick-Win #3: Severity Levels
+  - id: error-level-requirement
+    summary: >
+      Critical requirement that must be satisfied (severity: error).
+      Deployment will fail if violated.
+    severity: error
+    requires:
+      - path: security.tls.enabled
+        equals: true
+    remediation: >
+      Enable TLS for security.
+
+  - id: warning-level-requirement
+    summary: >
+      Warning-level requirement - violations don't fail deployment but should be addressed.
+      Useful for best practices and recommendations.
+    severity: warn
+    requires:
+      - path: monitoring.enabled
+        equals: true
+    remediation: >
+      Enable monitoring for better observability.
+
+  - id: info-level-requirement
+    summary: >
+      Informational requirement - just tracking config state.
+      Doesn't affect deployment success.
+    severity: info
+    requires:
+      - path: documentation.updated
+        equals: true
+    remediation: >
+      Update documentation to reflect current configuration.
+
+  # Quick-Win #4: Conditional Skipping (skip_if)
+  - id: cache-tuning-unless-disabled
+    summary: >
+      Cache tuning requirements don't apply in local dev mode.
+      Using skip_if makes the intent clearer than empty conditions.
+    skip_if:
+      - path: deployment.mode
+        equals: "local"
+    requires:
+      - path: cache.workers
+        gte: 4
+      - path: cache.memory_mb
+        gte: 512
+    remediation: >
+      Configure cache workers >= 4 and memory >= 512MB.
+
+  - id: replication-skip-in-dev
+    summary: >
+      Database replication not needed in development.
+      Skip this entire requirement when in dev mode.
+    skip_if:
+      - path: deployment.environment
+        equals: "dev"
+    requires:
+      - path: database.replication.enabled
+        equals: true
+    remediation: >
+      Enable database replication for production resilience.
+
+  # Quick-Win #5: Conditional Remediation Hints
+  - id: timeout-configuration-context-aware
+    summary: >
+      Timeout configuration with hints that vary by actual value.
+      Hints show different recommendations based on current timeout.
+    requires:
+      - path: request.timeout_ms
+        between:
+          min: 1000
+          max: 30000
+    remediation: >
+      Set request timeout between 1000ms and 30000ms.
+    remediation_hints:
+      # This hint only shows if timeout is very low
+      - type: set_field
+        path: request.timeout_ms
+        value: 5000
+        description: "Recommended for normal workloads"
+        if_path: request.timeout_ms
+        if_condition:
+          path: request.timeout_ms
+          lt: 2000
+
+      # This hint only shows if timeout is very high
+      - type: set_field
+        path: request.timeout_ms
+        value: 15000
+        description: "Too high - may cause cascading failures"
+        if_path: request.timeout_ms
+        if_condition:
+          path: request.timeout_ms
+          gt: 25000
+
+      # Generic hint always shown
+      - type: set_field
+        path: request.timeout_ms
+        value: 10000
+        description: "Safe default for most applications"
+
+  # Combination: Using multiple quick-wins together
+  - id: resource-limits-advanced
+    summary: >
+      Advanced resource limit configuration combining multiple quick-wins.
+      Demonstrates stacking of improvements for powerful expressions.
+    severity: warn
+    skip_if:
+      - path: deployment.mode
+        equals: "local"
+    requires:
+      - path: memory_limit_mb
+        between:
+          min: 256
+          max: 8192
+      - path: cpu_limit_millicores
+        between:
+          min: 100
+          max: 4000
+      - path: environment
+        not_equals: "test"
+    remediation: >
+      Configure resource limits within recommended ranges.
+    remediation_hints:
+      - type: set_field
+        path: memory_limit_mb
+        value: 1024
+        description: "1GB recommended for most services"
+        if_path: memory_limit_mb
+        if_condition:
+          path: memory_limit_mb
+          lt: 512
+
+      - type: set_field
+        path: cpu_limit_millicores
+        value: 500
+        description: "0.5 CPU cores recommended"
+        if_path: cpu_limit_millicores
+        if_condition:
+          path: cpu_limit_millicores
+          lt: 200

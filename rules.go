@@ -97,15 +97,23 @@ func parseSemver(vstr string) semver {
 
 // Condition is a single path check with optional comparison operators. Used both
 // for `conditions` (when a requirement applies) and `requires` (what must hold once it does).
-// Exactly one comparison operator (Equals, Gte, Gt, Lte, Lt, Contains) must be set.
+// Exactly one comparison operator (Equals, Gte, Gt, Lte, Lt, Contains, Between, NotEquals) must be set.
 type Condition struct {
-	Path     string      `yaml:"path" json:"path"`
-	Equals   interface{} `yaml:"equals,omitempty" json:"equals,omitempty"`
-	Gte      interface{} `yaml:"gte,omitempty" json:"gte,omitempty"`       // >= comparison
-	Gt       interface{} `yaml:"gt,omitempty" json:"gt,omitempty"`         // > comparison
-	Lte      interface{} `yaml:"lte,omitempty" json:"lte,omitempty"`       // <= comparison
-	Lt       interface{} `yaml:"lt,omitempty" json:"lt,omitempty"`         // < comparison
-	Contains interface{} `yaml:"contains,omitempty" json:"contains,omitempty"` // array membership
+	Path      string      `yaml:"path" json:"path"`
+	Equals    interface{} `yaml:"equals,omitempty" json:"equals,omitempty"`
+	Gte       interface{} `yaml:"gte,omitempty" json:"gte,omitempty"`       // >= comparison
+	Gt        interface{} `yaml:"gt,omitempty" json:"gt,omitempty"`         // > comparison
+	Lte       interface{} `yaml:"lte,omitempty" json:"lte,omitempty"`       // <= comparison
+	Lt        interface{} `yaml:"lt,omitempty" json:"lt,omitempty"`         // < comparison
+	Contains  interface{} `yaml:"contains,omitempty" json:"contains,omitempty"` // array membership
+	Between   *Between    `yaml:"between,omitempty" json:"between,omitempty"`   // range validation (min <= value <= max)
+	NotEquals interface{} `yaml:"not_equals,omitempty" json:"not_equals,omitempty"` // negation operator
+}
+
+// Between specifies a range check (min <= value <= max)
+type Between struct {
+	Min interface{} `yaml:"min" json:"min"`
+	Max interface{} `yaml:"max" json:"max"`
 }
 
 // Verify names how an external dependency could be checked. Only "manual"
@@ -156,6 +164,9 @@ type RemediationHint struct {
 	Path        string      `yaml:"path" json:"path"`   // Field to modify
 	Value       interface{} `yaml:"value,omitempty" json:"value,omitempty"`
 	Description string      `yaml:"description,omitempty" json:"description,omitempty"`
+	// Conditional hints: only show if a path matches a condition
+	IfPath      string      `yaml:"if_path,omitempty" json:"if_path,omitempty"`       // Only show if this path...
+	IfCondition *Condition  `yaml:"if_condition,omitempty" json:"if_condition,omitempty"` // ...matches this condition
 }
 
 // Requirement describes one conditional config rule: if all Conditions
@@ -166,6 +177,8 @@ type Requirement struct {
 	Conditions           []Condition          `yaml:"conditions" json:"conditions"`
 	Unless               []Condition          `yaml:"unless,omitempty" json:"unless,omitempty"` // Forbidden conditions
 	Requires             []Condition          `yaml:"requires" json:"requires"`
+	Severity             string               `yaml:"severity,omitempty" json:"severity,omitempty"` // error (default), warn, or info
+	SkipIf               []Condition          `yaml:"skip_if,omitempty" json:"skip_if,omitempty"`   // Conditionally skip requirement
 	Remediation          string               `yaml:"remediation" json:"remediation"`
 	RemediationHints     []RemediationHint    `yaml:"remediation_hints,omitempty" json:"remediation_hints,omitempty"`
 	ExternalDependencies []ExternalDependency `yaml:"external_dependencies" json:"external_dependencies,omitempty"`
@@ -362,6 +375,23 @@ func arrayContains(arr interface{}, target interface{}) bool {
 	}
 }
 
+// betweenRange checks if a value is within a range (min <= value <= max)
+func betweenRange(v interface{}, b *Between) bool {
+	val, ok := toFloat64(v)
+	if !ok {
+		return false
+	}
+	min, ok := toFloat64(b.Min)
+	if !ok {
+		return false
+	}
+	max, ok := toFloat64(b.Max)
+	if !ok {
+		return false
+	}
+	return val >= min && val <= max
+}
+
 func conditionHolds(values map[string]interface{}, c Condition) bool {
 	v, ok := lookupPath(values, c.Path)
 	if !ok {
@@ -383,6 +413,12 @@ func conditionHolds(values map[string]interface{}, c Condition) bool {
 	}
 	if c.Contains != nil {
 		return arrayContains(v, c.Contains)
+	}
+	if c.Between != nil {
+		return betweenRange(v, c.Between)
+	}
+	if c.NotEquals != nil {
+		return !valuesEqual(v, c.NotEquals)
 	}
 
 	// Default: use Equals (even if it's nil, for null comparison)
@@ -468,6 +504,7 @@ type RequirementResult struct {
 	Summary           string                 `json:"summary"`
 	Applicable        bool                   `json:"applicable"`
 	Satisfied         bool                   `json:"satisfied"`
+	Severity          string                 `json:"severity,omitempty"`           // error (default), warn, or info
 	UnmetPaths        []string               `json:"unmet_paths,omitempty"`
 	Remediation       string                 `json:"remediation,omitempty"`
 	RemediationHints  []RemediationHint      `json:"remediation_hints,omitempty"`
@@ -481,12 +518,37 @@ type RequirementResult struct {
 // hold, every Requires entry is checked independently and unmet ones are
 // reported by path. Also captures actual values for all paths mentioned.
 func evaluateRequirement(values map[string]interface{}, r Requirement) RequirementResult {
+	// Check skip_if conditions: if any hold, skip the requirement entirely
+	for _, skip := range r.SkipIf {
+		if conditionHolds(values, skip) {
+			severity := r.Severity
+			if severity == "" {
+				severity = "error"
+			}
+			return RequirementResult{
+				ID:           r.ID,
+				Summary:      r.Summary,
+				Applicable:   false,
+				Satisfied:    true,
+				Severity:     severity,
+				Remediation:  r.Remediation,
+				References:   r.References,
+			}
+		}
+	}
+
+	// Default severity to "error" if not specified
+	severity := r.Severity
+	if severity == "" {
+		severity = "error"
+	}
+
 	res := RequirementResult{
-		ID:               r.ID,
-		Summary:          r.Summary,
-		Remediation:      r.Remediation,
-		RemediationHints: r.RemediationHints,
-		References:       r.References,
+		ID:           r.ID,
+		Summary:      r.Summary,
+		Severity:     severity,
+		Remediation:  r.Remediation,
+		References:   r.References,
 	}
 
 	// Collect all paths referenced in conditions, unless, and requires
@@ -534,6 +596,20 @@ func evaluateRequirement(values map[string]interface{}, r Requirement) Requireme
 		}
 	}
 	res.Satisfied = len(res.UnmetPaths) == 0
+
+	// Filter remediation hints based on conditions
+	for _, hint := range r.RemediationHints {
+		if hint.IfPath != "" && hint.IfCondition != nil {
+			// Hint is conditional: only include if condition holds
+			if conditionHolds(values, *hint.IfCondition) {
+				res.RemediationHints = append(res.RemediationHints, hint)
+			}
+		} else {
+			// No condition, always include
+			res.RemediationHints = append(res.RemediationHints, hint)
+		}
+	}
+
 	return res
 }
 

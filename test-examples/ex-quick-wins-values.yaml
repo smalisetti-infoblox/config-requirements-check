@@ -1,0 +1,38 @@
+# Values file for testing quick-win improvements
+
+server:
+  port: 8080
+
+api:
+  version: "2.5.1"
+
+security:
+  tls:
+    enabled: true
+
+monitoring:
+  enabled: true
+
+documentation:
+  updated: false
+
+deployment:
+  mode: "production"
+  environment: "prod"
+
+cache:
+  workers: 8
+  memory_mb: 1024
+
+database:
+  replication:
+    enabled: true
+
+request:
+  timeout_ms: 8000
+
+memory_limit_mb: 1024
+
+cpu_limit_millicores: 500
+
+environment: "production"
