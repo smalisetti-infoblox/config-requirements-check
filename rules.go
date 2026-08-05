@@ -474,10 +474,11 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 		} else if s, ok := v.(string); ok {
 			// Accept string "true"/"false" as booleans (case-insensitive)
 			lower := strings.ToLower(s)
-			if lower == "true" {
+			switch lower {
+			case "true":
 				isBool = true
 				boolValue = true
-			} else if lower == "false" {
+			case "false":
 				isBool = true
 				boolValue = false
 			}

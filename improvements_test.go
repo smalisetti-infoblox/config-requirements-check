@@ -1236,8 +1236,12 @@ requirements:
 	// Create subdirectories with values files
 	env1Dir := filepath.Join(tmpDir, "env1")
 	env2Dir := filepath.Join(tmpDir, "env2")
-	os.Mkdir(env1Dir, 0755)
-	os.Mkdir(env2Dir, 0755)
+	if err := os.Mkdir(env1Dir, 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
+	if err := os.Mkdir(env2Dir, 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
 
 	// Env1: valid (redis enabled with cluster mode)
 	writeTempFile(t, env1Dir, "values.yaml", `
@@ -1296,8 +1300,12 @@ requirements:
 	// Create one passing and one failing environment
 	env1 := filepath.Join(tmpDir, "passing")
 	env2 := filepath.Join(tmpDir, "failing")
-	os.Mkdir(env1, 0755)
-	os.Mkdir(env2, 0755)
+	if err := os.Mkdir(env1, 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
+	if err := os.Mkdir(env2, 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
 
 	writeTempFile(t, env1, "values.yaml", `
 feature:

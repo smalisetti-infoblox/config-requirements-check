@@ -50,8 +50,8 @@ func runCLI(t *testing.T, args []string) (int, string) {
 		t.Fatal(err)
 	}
 	code := run(args, stdout, stderr)
-	stdout.Close()
-	stderr.Close()
+	_ = stdout.Close()
+	_ = stderr.Close()
 	out, _ := os.ReadFile(stdoutPath)
 	errOut, _ := os.ReadFile(stderrPath)
 	return code, string(out) + string(errOut)

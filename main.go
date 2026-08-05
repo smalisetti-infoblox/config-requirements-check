@@ -82,19 +82,19 @@ func runBatchCheck(dirPath, requirementsPath, format, environment string, stdout
 	// Load requirements once
 	rf, err := loadRequirements(requirementsPath)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return 2
 	}
 
 	// Find all values.yaml files
 	var valuesFiles []string
 	if err := findValuesFiles(dirPath, &valuesFiles); err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return 2
 	}
 
 	if len(valuesFiles) == 0 {
-		fmt.Fprintln(stderr, "error: no values.yaml files found in", dirPath)
+		_, _ = fmt.Fprintln(stderr, "error: no values.yaml files found in", dirPath)
 		return 2
 	}
 
@@ -106,7 +106,7 @@ func runBatchCheck(dirPath, requirementsPath, format, environment string, stdout
 	for _, valuesPath := range valuesFiles {
 		values, err := loadValues(valuesPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "warning: skipping %s: %v\n", valuesPath, err)
+			_, _ = fmt.Fprintf(stderr, "warning: skipping %s: %v\n", valuesPath, err)
 			continue
 		}
 
@@ -145,19 +145,19 @@ func runBatchCheck(dirPath, requirementsPath, format, environment string, stdout
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(batch); err != nil {
-			fmt.Fprintln(stderr, "error encoding report:", err)
+			_, _ = fmt.Fprintln(stderr, "error encoding report:", err)
 			return 2
 		}
 	} else {
-		fmt.Fprintf(stdout, "Batch check: %d files, %d passed, %d failed\n", batch.Total.Checked, batch.Total.Passed, batch.Total.Failed)
+		_, _ = fmt.Fprintf(stdout, "Batch check: %d files, %d passed, %d failed\n", batch.Total.Checked, batch.Total.Passed, batch.Total.Failed)
 		for _, result := range batch.Files {
 			status := "✓ PASS"
 			if !result.Passed {
 				status = "✗ FAIL"
 			}
-			fmt.Fprintf(stdout, "  %s  %s\n", status, result.Path)
+			_, _ = fmt.Fprintf(stdout, "  %s  %s\n", status, result.Path)
 			if !result.Passed {
-				fmt.Fprintf(stdout, "           (%d/%d requirements failed)\n", result.RequirementsFailed, result.RequirementsTotal)
+				_, _ = fmt.Fprintf(stdout, "           (%d/%d requirements failed)\n", result.RequirementsFailed, result.RequirementsTotal)
 			}
 		}
 	}
@@ -207,7 +207,7 @@ func run(args []string, stdout, stderr *os.File) int {
 
 	fs.Usage = func() {
 		out := fs.Output()
-		fmt.Fprint(out, `config-requirements-check catches silent config-migration gaps: cases where
+		_, _ = fmt.Fprint(out, `config-requirements-check catches silent config-migration gaps: cases where
 a breaking change makes an old config combination invalid, but nothing
 crashes or errors -- the affected feature just quietly stops working.
 
@@ -224,7 +224,7 @@ Usage:
 Flags:
 `)
 		fs.PrintDefaults()
-		fmt.Fprint(out, `
+		_, _ = fmt.Fprint(out, `
 Examples:
 
   GETTING STARTED
@@ -278,12 +278,12 @@ Exit codes:
 	}
 
 	if *initFlag {
-		fmt.Fprint(stdout, starterTemplate)
+		_, _ = fmt.Fprint(stdout, starterTemplate)
 		return 0
 	}
 
 	if *format != "text" && *format != "json" {
-		fmt.Fprintf(stderr, "error: -format must be \"text\" or \"json\", got %q\n", *format)
+		_, _ = fmt.Fprintf(stderr, "error: -format must be \"text\" or \"json\", got %q\n", *format)
 		return 2
 	}
 
@@ -294,25 +294,25 @@ Exit codes:
 	// Handle batch checking with -values-dir
 	if *valuesDirPath != "" {
 		if *valuesPath != "" {
-			fmt.Fprintln(stderr, "error: cannot use both -values and -values-dir")
+			_, _ = fmt.Fprintln(stderr, "error: cannot use both -values and -values-dir")
 			return 2
 		}
 		return runBatchCheck(*valuesDirPath, *requirementsPath, *format, *environment, stdout, stderr)
 	}
 
 	if *valuesPath == "" {
-		fmt.Fprintln(stderr, "error: -values or -values-dir is required")
+		_, _ = fmt.Fprintln(stderr, "error: -values or -values-dir is required")
 		return 2
 	}
 
 	values, err := loadValues(*valuesPath)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return 2
 	}
 	rf, err := loadRequirements(*requirementsPath)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return 2
 	}
 
@@ -326,7 +326,7 @@ Exit codes:
 		}
 		reqs = filtered
 		if len(reqs) == 0 {
-			fmt.Fprintf(stderr, "error: no requirement with id %q found in %s\n", *featureID, *requirementsPath)
+			_, _ = fmt.Fprintf(stderr, "error: no requirement with id %q found in %s\n", *featureID, *requirementsPath)
 			return 2
 		}
 	}
@@ -375,7 +375,7 @@ Exit codes:
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(report); err != nil {
-			fmt.Fprintln(stderr, "error encoding report:", err)
+			_, _ = fmt.Fprintln(stderr, "error encoding report:", err)
 			return 2
 		}
 	} else {
@@ -395,7 +395,7 @@ Exit codes:
 func runLint(requirementsPath, format string, stdout, stderr *os.File) int {
 	rf, err := loadRequirements(requirementsPath)
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		_, _ = fmt.Fprintln(stderr, "error:", err)
 		return 2
 	}
 	issues := lintRequirements(rf)
@@ -406,15 +406,15 @@ func runLint(requirementsPath, format string, stdout, stderr *os.File) int {
 		if err := enc.Encode(struct {
 			Issues []string `json:"issues"`
 		}{Issues: issues}); err != nil {
-			fmt.Fprintln(stderr, "error encoding report:", err)
+			_, _ = fmt.Fprintln(stderr, "error encoding report:", err)
 			return 2
 		}
 	} else if len(issues) == 0 {
-		fmt.Fprintln(stdout, "OK: no issues found")
+		_, _ = fmt.Fprintln(stdout, "OK: no issues found")
 	} else {
-		fmt.Fprintf(stdout, "Found %d issue(s) in %s:\n", len(issues), requirementsPath)
+		_, _ = fmt.Fprintf(stdout, "Found %d issue(s) in %s:\n", len(issues), requirementsPath)
 		for _, issue := range issues {
-			fmt.Fprintf(stdout, "  - %s\n", issue)
+			_, _ = fmt.Fprintf(stdout, "  - %s\n", issue)
 		}
 	}
 
@@ -426,68 +426,68 @@ func runLint(requirementsPath, format string, stdout, stderr *os.File) int {
 
 func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 	if showFeatures {
-		fmt.Fprintln(w, "Features:")
+		_, _ = fmt.Fprintln(w, "Features:")
 		if len(r.Features) == 0 {
-			fmt.Fprintln(w, "  (none referenced by the requirements file)")
+			_, _ = fmt.Fprintln(w, "  (none referenced by the requirements file)")
 		}
 		for _, f := range r.Features {
 			if f.Status == "unset" {
-				fmt.Fprintf(w, "  %s: unset\n", f.Path)
+				_, _ = fmt.Fprintf(w, "  %s: unset\n", f.Path)
 			} else {
-				fmt.Fprintf(w, "  %s=%v (%s)\n", f.Path, f.Value, f.Status)
+				_, _ = fmt.Fprintf(w, "  %s=%v (%s)\n", f.Path, f.Value, f.Status)
 			}
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 
 	if showCheck {
-		fmt.Fprintln(w, "Requirements:")
+		_, _ = fmt.Fprintln(w, "Requirements:")
 		if len(r.Requirements) == 0 {
-			fmt.Fprintln(w, "  (none)")
+			_, _ = fmt.Fprintln(w, "  (none)")
 		}
 		for _, req := range r.Requirements {
 			switch {
 			case !req.Applicable:
-				fmt.Fprintf(w, "  [not-applicable] %s\n", req.ID)
+				_, _ = fmt.Fprintf(w, "  [not-applicable] %s\n", req.ID)
 			case req.Satisfied:
-				fmt.Fprintf(w, "  [satisfied]      %s\n", req.ID)
+				_, _ = fmt.Fprintf(w, "  [satisfied]      %s\n", req.ID)
 			default:
-				fmt.Fprintf(w, "  [MISCONFIGURED]  %s\n", req.ID)
-				fmt.Fprintf(w, "                   %s\n", req.Summary)
-				fmt.Fprintf(w, "                   unmet: %v\n", req.UnmetPaths)
+				_, _ = fmt.Fprintf(w, "  [MISCONFIGURED]  %s\n", req.ID)
+				_, _ = fmt.Fprintf(w, "                   %s\n", req.Summary)
+				_, _ = fmt.Fprintf(w, "                   unmet: %v\n", req.UnmetPaths)
 				// Show actual values for debugging
 				if len(req.ActualValues) > 0 {
-					fmt.Fprintf(w, "                   actual values: %v\n", req.ActualValues)
+					_, _ = fmt.Fprintf(w, "                   actual values: %v\n", req.ActualValues)
 				}
-				fmt.Fprintf(w, "                   fix: %s\n", req.Remediation)
+				_, _ = fmt.Fprintf(w, "                   fix: %s\n", req.Remediation)
 				// Show structured remediation hints if available
 				for _, hint := range req.RemediationHints {
-					fmt.Fprintf(w, "                   hint: %s %s = %v", hint.Type, hint.Path, hint.Value)
+					_, _ = fmt.Fprintf(w, "                   hint: %s %s = %v", hint.Type, hint.Path, hint.Value)
 					if hint.Description != "" {
-						fmt.Fprintf(w, " (%s)", hint.Description)
+						_, _ = fmt.Fprintf(w, " (%s)", hint.Description)
 					}
-					fmt.Fprintf(w, "\n")
+					_, _ = fmt.Fprintf(w, "\n")
 				}
 			}
 			for _, ref := range req.References {
-				fmt.Fprintf(w, "                   ref: %s (%s)\n", ref.Label, ref.URL)
+				_, _ = fmt.Fprintf(w, "                   ref: %s (%s)\n", ref.Label, ref.URL)
 			}
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 
 	if showDeps {
-		fmt.Fprintln(w, "External dependencies (not verified against this values file — set up per environment):")
+		_, _ = fmt.Fprintln(w, "External dependencies (not verified against this values file — set up per environment):")
 		if len(r.Dependencies) == 0 {
-			fmt.Fprintln(w, "  (none apply)")
+			_, _ = fmt.Fprintln(w, "  (none apply)")
 		}
 		for _, d := range r.Dependencies {
-			fmt.Fprintf(w, "  [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
+			_, _ = fmt.Fprintf(w, "  [%s] %s: %s (owner: %s)\n", d.RequirementID, d.ID, d.Description, d.Owner)
 			if len(d.KnownImplementations) == 0 {
-				fmt.Fprintln(w, "                    no known implementations on record — verify manually")
+				_, _ = fmt.Fprintln(w, "                    no known implementations on record — verify manually")
 			}
 			for _, impl := range d.KnownImplementations {
-				fmt.Fprintf(w, "                    known implementation in %s: %s\n", impl.Environment, impl.URL)
+				_, _ = fmt.Fprintf(w, "                    known implementation in %s: %s\n", impl.Environment, impl.URL)
 			}
 		}
 	}
