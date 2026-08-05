@@ -12,6 +12,8 @@ requirements:
     conditions:
       - path: redis.enabled
         equals: true
+      - path: string.val
+        equals: helloworld
     requires:
       - path: consolidatedHealth.enabled
         equals: true

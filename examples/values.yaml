@@ -3,5 +3,8 @@
 redis:
   enabled: true
 
+string:
+  val: helloworld2
+
 consolidatedHealth:
   enabled: true

@@ -5,16 +5,23 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Condition is a single path/equals check. Used both for `conditions` (when
-// a requirement applies) and `requires` (what must hold once it does).
+// Condition is a single path check with optional comparison operators. Used both
+// for `conditions` (when a requirement applies) and `requires` (what must hold once it does).
+// Exactly one comparison operator (Equals, Gte, Gt, Lte, Lt, Contains) must be set.
 type Condition struct {
-	Path   string      `yaml:"path" json:"path"`
-	Equals interface{} `yaml:"equals" json:"equals"`
+	Path     string      `yaml:"path" json:"path"`
+	Equals   interface{} `yaml:"equals,omitempty" json:"equals,omitempty"`
+	Gte      interface{} `yaml:"gte,omitempty" json:"gte,omitempty"`       // >= comparison
+	Gt       interface{} `yaml:"gt,omitempty" json:"gt,omitempty"`         // > comparison
+	Lte      interface{} `yaml:"lte,omitempty" json:"lte,omitempty"`       // <= comparison
+	Lt       interface{} `yaml:"lt,omitempty" json:"lt,omitempty"`         // < comparison
+	Contains interface{} `yaml:"contains,omitempty" json:"contains,omitempty"` // array membership
 }
 
 // Verify names how an external dependency could be checked. Only "manual"
@@ -144,9 +151,70 @@ func lookupPath(values map[string]interface{}, path string) (interface{}, bool) 
 // valuesEqual compares a resolved YAML value against a requirement's
 // expected value. Formatting-based comparison keeps this working across the
 // scalar types YAML unmarshals to (bool, string, int, float64) without
-// requiring exact Go type matches.
+// requiring exact Go type matches. Both values are converted to strings via
+// Sprintf, so true matches "true", 1 matches "1", etc.
 func valuesEqual(actual, expected interface{}) bool {
 	return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
+}
+
+// numericCompare performs numeric comparison between actual and expected values.
+// Both values are converted to float64 for comparison. Returns false if conversion fails.
+func numericCompare(actual, expected interface{}, op string) bool {
+	actualNum, ok := toFloat64(actual)
+	if !ok {
+		return false
+	}
+	expectedNum, ok := toFloat64(expected)
+	if !ok {
+		return false
+	}
+	switch op {
+	case "gte":
+		return actualNum >= expectedNum
+	case "gt":
+		return actualNum > expectedNum
+	case "lte":
+		return actualNum <= expectedNum
+	case "lt":
+		return actualNum < expectedNum
+	default:
+		return false
+	}
+}
+
+// toFloat64 converts a value to float64 for numeric comparison.
+func toFloat64(v interface{}) (float64, bool) {
+	switch val := v.(type) {
+	case float64:
+		return val, true
+	case int:
+		return float64(val), true
+	case string:
+		f, err := strconv.ParseFloat(val, 64)
+		return f, err == nil
+	case bool:
+		if val {
+			return 1.0, true
+		}
+		return 0.0, true
+	default:
+		return 0, false
+	}
+}
+
+// arrayContains checks if an array contains a specific value.
+func arrayContains(arr interface{}, target interface{}) bool {
+	switch a := arr.(type) {
+	case []interface{}:
+		for _, item := range a {
+			if valuesEqual(item, target) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func conditionHolds(values map[string]interface{}, c Condition) bool {
@@ -154,6 +222,25 @@ func conditionHolds(values map[string]interface{}, c Condition) bool {
 	if !ok {
 		return false
 	}
+
+	// Try comparison operators in priority order
+	if c.Gte != nil {
+		return numericCompare(v, c.Gte, "gte")
+	}
+	if c.Gt != nil {
+		return numericCompare(v, c.Gt, "gt")
+	}
+	if c.Lte != nil {
+		return numericCompare(v, c.Lte, "lte")
+	}
+	if c.Lt != nil {
+		return numericCompare(v, c.Lt, "lt")
+	}
+	if c.Contains != nil {
+		return arrayContains(v, c.Contains)
+	}
+
+	// Default: use Equals (even if it's nil, for null comparison)
 	return valuesEqual(v, c.Equals)
 }
 
@@ -288,6 +375,36 @@ func applicableDependencies(values map[string]interface{}, reqs []Requirement) [
 	return deps
 }
 
+// isValidConditionOperator checks that at most one comparison operator is set.
+// We reject conditions where multiple operators are explicitly set (e.g., both Equals and Gte).
+// Note: When no operators are set (all nil), we consider it valid for backward compatibility.
+func isValidConditionOperator(c Condition) bool {
+	// Count how many non-nil operators are set
+	nonNilCount := 0
+
+	if c.Equals != nil {
+		nonNilCount++
+	}
+	if c.Gte != nil {
+		nonNilCount++
+	}
+	if c.Gt != nil {
+		nonNilCount++
+	}
+	if c.Lte != nil {
+		nonNilCount++
+	}
+	if c.Lt != nil {
+		nonNilCount++
+	}
+	if c.Contains != nil {
+		nonNilCount++
+	}
+
+	// Allow 0 (no operators, backward compatible) or 1 (exactly one operator)
+	return nonNilCount <= 1
+}
+
 // knownVerifyTypes lists every verify.type this tool actually knows how to
 // interpret. Kept as a single source of truth so lintRequirements and any
 // future automated checker agree on what's valid.
@@ -325,6 +442,9 @@ func lintRequirements(rf *RequirementsFile) []string {
 			if c.Path == "" {
 				issues = append(issues, fmt.Sprintf("%s: conditions[%d] has an empty path", loc, j))
 			}
+			if !isValidConditionOperator(c) {
+				issues = append(issues, fmt.Sprintf("%s: conditions[%d] must have exactly one operator (equals, gte, gt, lte, lt, or contains)", loc, j))
+			}
 		}
 		if len(r.Requires) == 0 {
 			issues = append(issues, fmt.Sprintf("%s: requires is empty — this requirement can never be misconfigured", loc))
@@ -332,6 +452,9 @@ func lintRequirements(rf *RequirementsFile) []string {
 		for j, req := range r.Requires {
 			if req.Path == "" {
 				issues = append(issues, fmt.Sprintf("%s: requires[%d] has an empty path", loc, j))
+			}
+			if !isValidConditionOperator(req) {
+				issues = append(issues, fmt.Sprintf("%s: requires[%d] must have exactly one operator (equals, gte, gt, lte, lt, or contains)", loc, j))
 			}
 		}
 

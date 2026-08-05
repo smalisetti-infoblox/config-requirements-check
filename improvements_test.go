@@ -1,0 +1,381 @@
+package main
+
+import (
+	"strings"
+	"testing"
+)
+
+// ==== Improvement #1: Comparison Operators Tests ====
+
+func TestNumericCompare_Gte(t *testing.T) {
+	tests := []struct {
+		actual   interface{}
+		expected float64
+		result   bool
+	}{
+		{5, 5.0, true},
+		{5, 3.0, true},
+		{3, 5.0, false},
+		{"5", 5.0, true},
+		{5.5, 5.0, true},
+	}
+
+	for _, tt := range tests {
+		if numericCompare(tt.actual, tt.expected, "gte") != tt.result {
+			t.Fatalf("numericCompare(%v, %v, gte) failed", tt.actual, tt.expected)
+		}
+	}
+}
+
+func TestNumericCompare_Gt(t *testing.T) {
+	if !numericCompare(5, 3, "gt") {
+		t.Fatalf("5 > 3 should be true")
+	}
+	if numericCompare(5, 5, "gt") {
+		t.Fatalf("5 > 5 should be false")
+	}
+	if numericCompare(3, 5, "gt") {
+		t.Fatalf("3 > 5 should be false")
+	}
+}
+
+func TestNumericCompare_Lte(t *testing.T) {
+	if !numericCompare(3, 5, "lte") {
+		t.Fatalf("3 <= 5 should be true")
+	}
+	if !numericCompare(5, 5, "lte") {
+		t.Fatalf("5 <= 5 should be true")
+	}
+	if numericCompare(5, 3, "lte") {
+		t.Fatalf("5 <= 3 should be false")
+	}
+}
+
+func TestNumericCompare_Lt(t *testing.T) {
+	if !numericCompare(3, 5, "lt") {
+		t.Fatalf("3 < 5 should be true")
+	}
+	if numericCompare(5, 5, "lt") {
+		t.Fatalf("5 < 5 should be false")
+	}
+	if numericCompare(5, 3, "lt") {
+		t.Fatalf("5 < 3 should be false")
+	}
+}
+
+func TestConditionHolds_WithGte(t *testing.T) {
+	req := Requirement{
+		ID: "version-check",
+		Conditions: []Condition{
+			{Path: "api.version", Gte: 3},
+		},
+		Requires: []Condition{
+			{Path: "auth.enabled", Equals: true},
+		},
+	}
+
+	// Version exactly 3
+	values1 := map[string]interface{}{
+		"api": map[string]interface{}{"version": 3},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Applicable {
+		t.Fatalf("version 3 >= 3 should apply requirement")
+	}
+
+	// Version 5
+	values2 := map[string]interface{}{
+		"api": map[string]interface{}{"version": 5},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if !res2.Applicable {
+		t.Fatalf("version 5 >= 3 should apply requirement")
+	}
+
+	// Version 2
+	values3 := map[string]interface{}{
+		"api": map[string]interface{}{"version": 2},
+	}
+	res3 := evaluateRequirement(values3, req)
+	if res3.Applicable {
+		t.Fatalf("version 2 >= 3 should not apply requirement")
+	}
+}
+
+func TestConditionHolds_WithLt(t *testing.T) {
+	req := Requirement{
+		ID: "timeout-check",
+		Conditions: []Condition{
+			{Path: "cache.timeout_ms", Lt: 5000},
+		},
+		Requires: []Condition{
+			{Path: "cache.redis_enabled", Equals: true},
+		},
+	}
+
+	// Timeout 3000 < 5000
+	values1 := map[string]interface{}{
+		"cache": map[string]interface{}{"timeout_ms": 3000},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Applicable {
+		t.Fatalf("timeout 3000 < 5000 should apply requirement")
+	}
+
+	// Timeout 5000 < 5000 (false)
+	values2 := map[string]interface{}{
+		"cache": map[string]interface{}{"timeout_ms": 5000},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Applicable {
+		t.Fatalf("timeout 5000 < 5000 should not apply requirement")
+	}
+}
+
+func TestConditionHolds_WithMultipleNumericConditions(t *testing.T) {
+	req := Requirement{
+		ID: "range-check",
+		Conditions: []Condition{
+			{Path: "port", Gte: 1024},
+			{Path: "port", Lte: 65535},
+		},
+		Requires: []Condition{
+			{Path: "tls.enabled", Equals: true},
+		},
+	}
+
+	// Valid port 8080
+	values1 := map[string]interface{}{
+		"port": 8080,
+		"tls":  map[string]interface{}{"enabled": true},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Satisfied {
+		t.Fatalf("port 8080 should satisfy range requirements")
+	}
+
+	// Invalid port 80 (too low)
+	values2 := map[string]interface{}{
+		"port": 80,
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Applicable {
+		t.Fatalf("port 80 < 1024 should not apply requirements")
+	}
+}
+
+func TestToFloat64(t *testing.T) {
+	tests := []struct {
+		value  interface{}
+		result float64
+		ok     bool
+	}{
+		{5.0, 5.0, true},
+		{5, 5.0, true},
+		{"5", 5.0, true},
+		{"5.5", 5.5, true},
+		{true, 1.0, true},
+		{false, 0.0, true},
+		{"not-a-number", 0, false},
+		{map[string]interface{}{}, 0, false},
+	}
+
+	for _, tt := range tests {
+		result, ok := toFloat64(tt.value)
+		if ok != tt.ok || (ok && result != tt.result) {
+			t.Fatalf("toFloat64(%v) = %v, %v; want %v, %v", tt.value, result, ok, tt.result, tt.ok)
+		}
+	}
+}
+
+// ==== Improvement #2: Array Support Tests ====
+
+func TestArrayContains_WithStringArray(t *testing.T) {
+	arr := []interface{}{"https://example.com", "https://localhost", "https://api.example.com"}
+
+	if !arrayContains(arr, "https://example.com") {
+		t.Fatalf("array should contain 'https://example.com'")
+	}
+	if arrayContains(arr, "https://notinarray.com") {
+		t.Fatalf("array should not contain 'https://notinarray.com'")
+	}
+}
+
+func TestArrayContains_WithNumberArray(t *testing.T) {
+	arr := []interface{}{1, 2, 3, 4, 5}
+
+	if !arrayContains(arr, 3) {
+		t.Fatalf("array should contain 3")
+	}
+	if !arrayContains(arr, "3") {
+		t.Fatalf("array should contain '3' (matches 3 via string format)")
+	}
+	if arrayContains(arr, 10) {
+		t.Fatalf("array should not contain 10")
+	}
+}
+
+func TestArrayContains_NonArray(t *testing.T) {
+	if arrayContains("not-an-array", "value") {
+		t.Fatalf("non-array should not contain anything")
+	}
+	if arrayContains(nil, "value") {
+		t.Fatalf("nil should not contain anything")
+	}
+}
+
+func TestConditionHolds_WithContains(t *testing.T) {
+	req := Requirement{
+		ID: "allowed-origins-check",
+		Conditions: []Condition{
+			{Path: "cors.allowed_origins", Contains: "https://example.com"},
+		},
+		Requires: []Condition{
+			{Path: "cors.enabled", Equals: true},
+		},
+	}
+
+	// CORS enabled with allowed origin
+	values1 := map[string]interface{}{
+		"cors": map[string]interface{}{
+			"enabled":           true,
+			"allowed_origins":   []interface{}{"https://example.com", "https://localhost"},
+		},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Applicable || !res1.Satisfied {
+		t.Fatalf("should find origin in array")
+	}
+
+	// CORS with different origins
+	values2 := map[string]interface{}{
+		"cors": map[string]interface{}{
+			"allowed_origins": []interface{}{"https://other.com"},
+		},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Applicable {
+		t.Fatalf("should not find origin in array")
+	}
+}
+
+// ==== Improvement #1: Lint Validation Tests ====
+
+func TestLintRequirements_MultipleOperators(t *testing.T) {
+	rf := &RequirementsFile{
+		Requirements: []Requirement{
+			{
+				ID:         "invalid",
+				Conditions: []Condition{{Path: "a", Equals: true, Gte: 5}},
+				Requires:   []Condition{{Path: "b", Equals: true}},
+			},
+		},
+	}
+	issues := lintRequirements(rf)
+	if len(issues) == 0 {
+		t.Fatalf("should detect multiple operators in condition")
+	}
+	found := false
+	for _, issue := range issues {
+		if strings.Contains(issue, "exactly one operator") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("error should mention operator count, got %v", issues)
+	}
+}
+
+func TestLintRequirements_ValidOperators(t *testing.T) {
+	rf := &RequirementsFile{
+		Requirements: []Requirement{
+			{
+				ID: "gte-check",
+				Conditions: []Condition{{Path: "version", Gte: 3}},
+				Requires:   []Condition{{Path: "feature", Equals: true}},
+			},
+			{
+				ID: "array-check",
+				Conditions: []Condition{{Path: "list", Contains: "item"}},
+				Requires:   []Condition{{Path: "enabled", Equals: true}},
+			},
+		},
+	}
+	issues := lintRequirements(rf)
+	if len(issues) != 0 {
+		t.Fatalf("should not report issues for valid operators, got %v", issues)
+	}
+}
+
+// ==== Integration test: CLI with new operators ====
+
+func TestCLI_ComparisonOperators(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: port-range
+    summary: "Port must be in valid range"
+    conditions:
+      - path: server.port
+        gte: 1024
+      - path: server.port
+        lte: 65535
+    requires:
+      - path: server.tls
+        equals: true
+    remediation: "Configure TLS for the server"
+  - id: version-check
+    summary: "API version must be 2 or higher"
+    conditions:
+      - path: api.version
+        gte: 2
+    requires:
+      - path: api.auth
+        equals: true
+    remediation: "Enable API authentication"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+server:
+  port: 8080
+  tls: true
+api:
+  version: 2
+  auth: true
+`)
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit 0 with valid config, got %d; output:\n%s", code, out)
+	}
+	if !strings.Contains(out, "satisfied") {
+		t.Fatalf("expected both requirements satisfied, output:\n%s", out)
+	}
+}
+
+func TestCLI_ArrayContains(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: cors-origin
+    summary: "If CORS enabled, must allow example.com"
+    conditions:
+      - path: cors.enabled
+        equals: true
+    requires:
+      - path: cors.allowed_origins
+        contains: "https://example.com"
+    remediation: "Add https://example.com to cors.allowed_origins"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+cors:
+  enabled: true
+  allowed_origins:
+    - https://example.com
+    - https://localhost
+`)
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d; output:\n%s", code, out)
+	}
+}
