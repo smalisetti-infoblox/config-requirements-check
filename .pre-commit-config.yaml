@@ -113,7 +113,7 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
 
       # Check for race conditions in tests
       - id: race-detector
@@ -123,7 +123,7 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         require_serial: true
 
       # Check code coverage
@@ -134,7 +134,7 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
 
       # Generate proper error messages
       - id: check-error-messages
@@ -161,7 +161,7 @@ repos:
         entry: bash -c './.git/hooks/verify-examples.sh'
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
 
       # Ensure starter.yaml is updated with new features
       - id: check-starter-yaml-sync
@@ -170,4 +170,4 @@ repos:
         entry: bash -c './.git/hooks/check-starter-yaml-sync.sh'
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
