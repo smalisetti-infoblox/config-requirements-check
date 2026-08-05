@@ -30,6 +30,177 @@ func TestNumericCompare_Gte(t *testing.T) {
 	}
 }
 
+// ==== Semantic Version Support Tests ====
+
+func TestSemverCompare_BasicVersions(t *testing.T) {
+	tests := []struct {
+		v1       string
+		v2       string
+		expected int
+	}{
+		{"1.0.0", "1.0.0", 0},  // equal
+		{"1.2.3", "1.2.4", -1}, // v1 < v2
+		{"2.0.0", "1.9.9", 1},  // v1 > v2
+		{"1.0.0", "1.0.1", -1}, // patch diff
+		{"1.1.0", "1.0.9", 1},  // minor diff
+		{"2.0.0", "1.9.9", 1},  // major diff
+	}
+
+	for _, tt := range tests {
+		result := semverCompare(tt.v1, tt.v2)
+		if result != tt.expected {
+			t.Fatalf("semverCompare(%q, %q) = %d, want %d", tt.v1, tt.v2, result, tt.expected)
+		}
+	}
+}
+
+func TestSemverCompare_Prerelease(t *testing.T) {
+	tests := []struct {
+		v1       string
+		v2       string
+		expected int
+	}{
+		{"1.0.0-alpha", "1.0.0", -1},      // prerelease < release
+		{"1.0.0", "1.0.0-alpha", 1},       // release > prerelease
+		{"1.0.0-alpha", "1.0.0-beta", -1}, // alpha < beta
+		{"1.0.0-beta", "1.0.0-alpha", 1},  // beta > alpha
+	}
+
+	for _, tt := range tests {
+		result := semverCompare(tt.v1, tt.v2)
+		if result != tt.expected {
+			t.Fatalf("semverCompare(%q, %q) = %d, want %d", tt.v1, tt.v2, result, tt.expected)
+		}
+	}
+}
+
+func TestIsSemver(t *testing.T) {
+	tests := []struct {
+		version string
+		expected bool
+	}{
+		{"1.2.3", true},
+		{"2.0.0", true},
+		{"1.0.0-alpha", true},
+		{"1.2.3-rc.1", true},
+		{"1", false},           // no dot
+		{"1.2", true},          // minor.patch
+		{"not.a.version", false}, // non-numeric
+		{"1.2.a", false},       // non-numeric patch
+	}
+
+	for _, tt := range tests {
+		result := isSemver(tt.version)
+		if result != tt.expected {
+			t.Fatalf("isSemver(%q) = %v, want %v", tt.version, result, tt.expected)
+		}
+	}
+}
+
+func TestNumericCompare_WithSemver(t *testing.T) {
+	tests := []struct {
+		actual   interface{}
+		expected interface{}
+		op       string
+		result   bool
+	}{
+		{"1.2.3", "1.0.0", "gte", true},
+		{"1.2.3", "2.0.0", "lt", true},
+		{"2.0.0", "1.9.9", "gt", true},
+		{"1.0.0", "1.0.0", "gte", true},
+		{"1.0.0-alpha", "1.0.0", "lt", true},
+	}
+
+	for _, tt := range tests {
+		result := numericCompare(tt.actual, tt.expected, tt.op)
+		if result != tt.result {
+			t.Fatalf("numericCompare(%v, %v, %s) = %v, want %v", tt.actual, tt.expected, tt.op, result, tt.result)
+		}
+	}
+}
+
+func TestConditionHolds_WithSemver(t *testing.T) {
+	req := Requirement{
+		ID: "app-version-check",
+		Conditions: []Condition{
+			{Path: "app.version", Gte: "2.0.0"},
+		},
+		Requires: []Condition{
+			{Path: "app.enabled", Equals: true},
+		},
+	}
+
+	// Version 2.5.1 >= 2.0.0
+	values1 := map[string]interface{}{
+		"app": map[string]interface{}{
+			"version": "2.5.1",
+			"enabled": true,
+		},
+	}
+	res1 := evaluateRequirement(values1, req)
+	if !res1.Applicable || !res1.Satisfied {
+		t.Fatalf("version 2.5.1 >= 2.0.0 should apply and satisfy")
+	}
+
+	// Version 1.9.9 < 2.0.0
+	values2 := map[string]interface{}{
+		"app": map[string]interface{}{
+			"version": "1.9.9",
+			"enabled": true,
+		},
+	}
+	res2 := evaluateRequirement(values2, req)
+	if res2.Applicable {
+		t.Fatalf("version 1.9.9 < 2.0.0 should not apply")
+	}
+}
+
+func TestCLI_SemanticVersionComparison(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: version-requirement
+    summary: "Application must be version 2.0.0 or higher"
+    conditions:
+      - path: app.version
+        gte: "2.0.0"
+    requires:
+      - path: app.enabled
+        equals: true
+    remediation: "Upgrade app to version 2.0.0 or higher"
+`)
+
+	// Passing: version 2.5.1
+	passingPath := writeTempFile(t, dir, "passing.yaml", `
+app:
+  version: "2.5.1"
+  enabled: true
+`)
+
+	code1, out1 := runCLI(t, []string{"-check", "-values", passingPath, "-requirements", reqPath})
+	if code1 != 0 {
+		t.Fatalf("expected exit 0 for version 2.5.1, got %d; output:\n%s", code1, out1)
+	}
+	if !strings.Contains(out1, "satisfied") {
+		t.Fatalf("expected satisfied requirement")
+	}
+
+	// Failing: version 1.9.9
+	failingPath := writeTempFile(t, dir, "failing.yaml", `
+app:
+  version: "1.9.9"
+  enabled: true
+`)
+
+	code2, out2 := runCLI(t, []string{"-check", "-values", failingPath, "-requirements", reqPath})
+	if code2 != 0 {
+		t.Fatalf("expected exit 0 for not-applicable version, got %d", code2)
+	}
+	if !strings.Contains(out2, "not-applicable") {
+		t.Fatalf("expected not-applicable for version 1.9.9")
+	}
+}
+
 func TestNumericCompare_Gt(t *testing.T) {
 	if !numericCompare(5, 3, "gt") {
 		t.Fatalf("5 > 3 should be true")

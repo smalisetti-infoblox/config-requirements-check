@@ -11,6 +11,90 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// semverCompare compares two semantic versions (e.g., "1.2.3" vs "1.2.3").
+// Returns -1 if v1 < v2, 0 if equal, 1 if v1 > v2.
+// Handles versions like "1.2.3", "2.0.0", "1.2.3-alpha", etc.
+func semverCompare(v1str, v2str string) int {
+	// Parse both versions
+	v1 := parseSemver(v1str)
+	v2 := parseSemver(v2str)
+
+	// Compare major.minor.patch
+	if v1.major != v2.major {
+		if v1.major < v2.major {
+			return -1
+		}
+		return 1
+	}
+	if v1.minor != v2.minor {
+		if v1.minor < v2.minor {
+			return -1
+		}
+		return 1
+	}
+	if v1.patch != v2.patch {
+		if v1.patch < v2.patch {
+			return -1
+		}
+		return 1
+	}
+
+	// If prerelease is present, version with prerelease is less than without
+	if v1.prerelease != "" && v2.prerelease == "" {
+		return -1
+	}
+	if v1.prerelease == "" && v2.prerelease != "" {
+		return 1
+	}
+	if v1.prerelease != v2.prerelease {
+		if v1.prerelease < v2.prerelease {
+			return -1
+		}
+		return 1
+	}
+
+	return 0
+}
+
+type semver struct {
+	major      int
+	minor      int
+	patch      int
+	prerelease string
+}
+
+// parseSemver parses a semantic version string like "1.2.3-alpha" into components
+func parseSemver(vstr string) semver {
+	v := semver{major: 0, minor: 0, patch: 0}
+
+	// Split on prerelease indicator
+	parts := strings.Split(vstr, "-")
+	versionPart := parts[0]
+	if len(parts) > 1 {
+		v.prerelease = parts[1]
+	}
+
+	// Split version into major.minor.patch
+	numbers := strings.Split(versionPart, ".")
+	if len(numbers) > 0 {
+		if n, err := strconv.Atoi(numbers[0]); err == nil {
+			v.major = n
+		}
+	}
+	if len(numbers) > 1 {
+		if n, err := strconv.Atoi(numbers[1]); err == nil {
+			v.minor = n
+		}
+	}
+	if len(numbers) > 2 {
+		if n, err := strconv.Atoi(numbers[2]); err == nil {
+			v.patch = n
+		}
+	}
+
+	return v
+}
+
 // Condition is a single path check with optional comparison operators. Used both
 // for `conditions` (when a requirement applies) and `requires` (what must hold once it does).
 // Exactly one comparison operator (Equals, Gte, Gt, Lte, Lt, Contains) must be set.
@@ -169,8 +253,18 @@ func valuesEqual(actual, expected interface{}) bool {
 }
 
 // numericCompare performs numeric comparison between actual and expected values.
-// Both values are converted to float64 for comparison. Returns false if conversion fails.
+// Supports both numeric values and semantic versions (e.g., "1.2.3").
+// Returns false if comparison is invalid.
 func numericCompare(actual, expected interface{}, op string) bool {
+	actualStr := fmt.Sprintf("%v", actual)
+	expectedStr := fmt.Sprintf("%v", expected)
+
+	// Try semantic version comparison first (for versions like "1.2.3")
+	if isSemver(actualStr) && isSemver(expectedStr) {
+		return semverCompareOp(actualStr, expectedStr, op)
+	}
+
+	// Fall back to numeric comparison
 	actualNum, ok := toFloat64(actual)
 	if !ok {
 		return false
@@ -188,6 +282,46 @@ func numericCompare(actual, expected interface{}, op string) bool {
 		return actualNum <= expectedNum
 	case "lt":
 		return actualNum < expectedNum
+	default:
+		return false
+	}
+}
+
+// isSemver checks if a string looks like a semantic version (e.g., "1.2.3")
+func isSemver(s string) bool {
+	// Remove prerelease part for checking
+	parts := strings.Split(s, "-")
+	versionPart := parts[0]
+
+	// Must have at least one dot (for major.minor)
+	if !strings.Contains(versionPart, ".") {
+		return false
+	}
+
+	// Split and check each part is numeric
+	numbers := strings.Split(versionPart, ".")
+	for _, num := range numbers {
+		if _, err := strconv.Atoi(num); err != nil {
+			return false
+		}
+	}
+
+	// Valid semver format
+	return true
+}
+
+// semverCompareOp performs semantic version comparison with operator
+func semverCompareOp(actual, expected string, op string) bool {
+	cmp := semverCompare(actual, expected)
+	switch op {
+	case "gte":
+		return cmp >= 0
+	case "gt":
+		return cmp > 0
+	case "lte":
+		return cmp <= 0
+	case "lt":
+		return cmp < 0
 	default:
 		return false
 	}
