@@ -1,0 +1,164 @@
+repos:
+  # Go formatting
+  - repo: https://github.com/pre-commit/mirrors-gofmt
+    rev: v1.20.5
+    hooks:
+      - id: gofmt
+        name: Go format
+        description: Format Go code with gofmt
+        language: system
+        types: [go]
+        entry: gofmt -w
+        pass_filenames: true
+
+  # Go linting
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.59.0
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        description: Run golangci-lint on Go files
+        entry: golangci-lint run --fix
+        language: system
+        types: [go]
+        pass_filenames: false
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: end-of-file-fixer
+        name: End of file fixer
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: check-yaml
+        name: Check YAML
+        args: ['--unsafe']
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=500']
+      - id: detect-private-key
+        name: Detect private keys
+
+# Custom local hooks
+  - repo: local
+    hooks:
+      # Enforce tests are updated
+      - id: require-tests
+        name: Require tests for code changes
+        description: Fail if Go code is modified but tests are not
+        entry: bash -c 'if git diff --cached --name-only | grep -E "\.go$" | grep -v "_test.go$" | grep -v "vendor/" > /dev/null; then if ! git diff --cached --name-only | grep "_test.go$" > /dev/null; then echo "❌ Go code changed but no test changes detected"; exit 1; fi; fi'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Enforce documentation updates
+      - id: require-docs
+        name: Require docs update for flag/exported changes
+        description: Warn if exported functions or flags changed without doc updates
+        entry: bash -c './.git/hooks/check-docs.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit-msg]
+
+      # Check for debug statements
+      - id: no-debug-statements
+        name: No debug statements
+        description: Fail if fmt.Println, log.Println, or println found in production code
+        entry: bash -c 'if git diff --cached --name-only | grep -E "\.go$" | grep -v "_test.go$" | xargs grep -l "fmt\.Println\|log\.Println\|println\|// TODO\|// FIXME" 2>/dev/null; then echo "❌ Debug statements or unresolved TODOs found in code"; exit 1; fi'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Check for TODO/FIXME comments
+      - id: no-bare-todos
+        name: No unresolved TODOs
+        description: Fail if TODO/FIXME lacks a github issue reference
+        entry: bash -c './.git/hooks/check-todos.sh'
+        language: system
+        pass_filenames: false
+
+      # Verify help output is complete
+      - id: verify-help-output
+        name: Verify help output completeness
+        description: Check that all flags documented in help text
+        entry: bash -c './.git/hooks/check-help-completeness.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit-msg]
+
+      # Check for missing error handling
+      - id: check-error-handling
+        name: Check error handling
+        description: Warn about unchecked errors
+        entry: bash -c './.git/hooks/check-errors.sh'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Validate commit message format
+      - id: validate-commit-msg
+        name: Validate commit message
+        description: Require meaningful commit messages (>10 chars, not "fix" or "update")
+        entry: bash -c './.git/hooks/validate-commit-msg.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit-msg]
+
+      # Ensure tests actually pass
+      - id: test-suite
+        name: Run test suite
+        description: Run all tests before committing
+        entry: bash -c 'echo "Running tests..." && go test -v ./...'
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [commit]
+
+      # Check for race conditions in tests
+      - id: race-detector
+        name: Race condition detector
+        description: Run tests with -race flag to detect race conditions
+        entry: bash -c 'echo "Running race detector..." && go test -race ./...'
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [commit]
+        require_serial: true
+
+      # Check code coverage
+      - id: coverage-threshold
+        name: Coverage threshold check
+        description: Ensure test coverage remains above threshold
+        entry: bash -c './.git/hooks/check-coverage.sh'
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [commit]
+
+      # Generate proper error messages
+      - id: check-error-messages
+        name: Check error message quality
+        description: Ensure errors start with lowercase and are descriptive
+        entry: bash -c './.git/hooks/check-error-msgs.sh'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Check for magic numbers
+      - id: no-magic-numbers
+        name: Check for magic numbers
+        description: Warn about unexplained numeric literals
+        entry: bash -c './.git/hooks/check-magic-numbers.sh'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Verify examples still work
+      - id: verify-examples
+        name: Verify examples are valid
+        description: Check that example YAML files are valid
+        entry: bash -c './.git/hooks/verify-examples.sh'
+        language: system
+        pass_filenames: false
+        stages: [commit]
