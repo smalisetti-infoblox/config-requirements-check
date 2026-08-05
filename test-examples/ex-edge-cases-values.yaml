@@ -1,0 +1,56 @@
+# Edge case values - testing boundary conditions
+
+limits:
+  min_value: 0
+  max_value: 2147483647
+
+allowed_hosts:
+  - "localhost"
+  - "127.0.0.1"
+  - "example.com"
+
+infrastructure:
+  cloud:
+    regions:
+      primary:
+        database:
+          host: "db.example.com"
+          port: 5432
+        cache:
+          redis:
+            enabled: true
+
+optional_field: null
+has_fallback: true
+
+app:
+  description: "My App v1.0 (production-ready) ✓"
+  contact_email: "admin+support@example.com"
+
+version:
+  major: 2
+  minor: 5
+  patch: 1
+
+metrics:
+  success_rate: 0.9995
+
+features:
+  experimental: true
+
+experimental:
+  debug_mode: true
+
+port: 8080
+enabled: true
+
+regions:
+  - "us-east-1"
+
+config:
+  name: "my-service"
+
+queue:
+  max_messages: 1000
+
+timeout_ms: 5000

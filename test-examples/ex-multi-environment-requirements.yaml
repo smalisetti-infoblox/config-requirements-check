@@ -1,0 +1,160 @@
+# Multi-Environment Configuration Requirements
+# Tests environment-specific validation with skip_in_environments
+
+requirements:
+  # General requirements (all environments)
+  - id: basic-connectivity
+    summary: Basic connectivity requirements for all environments
+    requires:
+      - path: server.enabled
+        equals: true
+      - path: server.port
+        gte: 1024
+
+  # Development-only setup tasks
+  - id: dev-database-setup
+    summary: Development environment database configuration
+    conditions:
+      - path: environment
+        equals: "dev"
+    requires:
+      - path: database.name
+        equals: "dev_db"
+      - path: database.reset_on_startup
+        equals: true
+    external_dependencies:
+      - id: local-postgres
+        description: "Local PostgreSQL must be running"
+        owner: dev-team
+        skip_in_environments: [staging, production]
+        verify:
+          type: manual
+        known_implementations:
+          - environment: local
+            url: "brew services start postgresql"
+
+  # Staging-specific requirements
+  - id: staging-tls-disabled
+    summary: Staging can use HTTP for convenience
+    conditions:
+      - path: environment
+        equals: "staging"
+    requires:
+      - path: server.tls.enabled
+        equals: false
+    external_dependencies:
+      - id: staging-ssl-optional
+        description: "Self-signed certificates optional in staging"
+        skip_in_environments: [production]
+        verify:
+          type: manual
+
+  # Production-only security requirements
+  - id: production-hardening
+    summary: Production must have all security measures
+    conditions:
+      - path: environment
+        equals: "production"
+    requires:
+      - path: server.tls.enabled
+        equals: true
+      - path: server.tls.min_version
+        equals: "1.3"
+      - path: authentication.required
+        equals: true
+      - path: authentication.mfa_enabled
+        equals: true
+    external_dependencies:
+      - id: prod-certificate
+        description: "Valid wildcard SSL certificate required"
+        owner: security-team
+        skip_in_environments: [dev, staging]
+        verify:
+          type: manual
+        known_implementations:
+          - environment: production
+            url: "https://cert-manager.io/docs/usage/acme/"
+
+  # Load balancer configuration
+  - id: load-balancer-config
+    summary: Load balancer setup for non-local environments
+    conditions:
+      - path: environment
+        equals: "staging"
+      - path: environment
+        equals: "production"
+    requires:
+      - path: load_balancer.enabled
+        equals: true
+      - path: load_balancer.health_check_interval
+        gte: 5
+    external_dependencies:
+      - id: loadbalancer-setup
+        description: "Load balancer must be configured and healthy"
+        owner: infrastructure-team
+        skip_in_environments: [dev, local]
+        verify:
+          type: manual
+
+  # Database replication (only production)
+  - id: database-replication
+    summary: Production databases must be replicated
+    conditions:
+      - path: environment
+        equals: "production"
+      - path: database.enabled
+        equals: true
+    requires:
+      - path: database.replication.enabled
+        equals: true
+      - path: database.replication.replicas
+        gte: 2
+    external_dependencies:
+      - id: database-failover
+        description: "Automatic database failover must be configured"
+        owner: dba-team
+        skip_in_environments: [dev, staging, local]
+        verify:
+          type: manual
+
+  # Monitoring requirements
+  - id: monitoring-setup
+    summary: Production monitoring is critical, dev uses simplified setup
+    conditions:
+      - path: monitoring.enabled
+        equals: true
+    requires:
+      - path: monitoring.backend
+        equals: "prometheus"
+      - path: monitoring.retention_days
+        gte: 7
+    external_dependencies:
+      - id: monitoring-backend
+        description: "Prometheus backend must be accessible"
+        owner: platform-team
+        skip_in_environments: [dev, local]
+        verify:
+          type: manual
+
+  # Backup requirements
+  - id: backup-policy
+    summary: Production and staging require automated backups
+    conditions:
+      - path: environment
+        equals: "production"
+      - path: environment
+        equals: "staging"
+      - path: backup.enabled
+        equals: true
+    requires:
+      - path: backup.schedule
+        equals: "daily"
+      - path: backup.retention_days
+        gte: 30
+    external_dependencies:
+      - id: backup-storage
+        description: "Backup storage backend must be configured"
+        owner: infrastructure-team
+        skip_in_environments: [dev, local]
+        verify:
+          type: manual

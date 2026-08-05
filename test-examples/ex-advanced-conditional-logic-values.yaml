@@ -1,0 +1,60 @@
+# Complex conditional logic test values
+
+features:
+  advanced_analytics: true
+  basic_analytics: true
+  data_collection: true
+  payment_processing: true
+  payment_processing_mock: true
+  old_payment_gateway: true
+
+auth:
+  enabled: true
+  oauth2:
+    provider: "okta"
+    client_id: "okta-12345"  # Set (not null)
+  legacy_sessions_enabled: false
+
+api:
+  version: 3
+  authentication:
+    required: true
+  request_validation: true
+  response_compression:
+    enabled: true
+  v2_compatibility_layer: true
+  legacy_clients_count: 5
+
+deployment:
+  environment: "production"
+  expected_qps: 5000
+  multi_region:
+    enabled: true
+  regions:
+    - "us-east-1"
+    - "us-west-2"
+  data_classification: "eu-personal-data"
+
+server:
+  tls:
+    enabled: true
+    min_version: "1.3"
+    strong_ciphers_only: true
+    certificate_verification: true
+  worker_threads: 64
+  request_buffer_size_kb: 1024
+  connection_pool_size: 500
+
+database:
+  region: "eu-central-1"
+  replication:
+    enabled: true
+    strategy: "active-active"
+    allowed_regions:
+      - "eu-west-1"
+      - "eu-north-1"
+
+migration:
+  payment_gateway_complete: false
+  payment_gateway_target: "stripe"
+  payment_gateway_eol_date: "2026-12-31"

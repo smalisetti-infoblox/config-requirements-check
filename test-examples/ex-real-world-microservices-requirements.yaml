@@ -1,0 +1,210 @@
+# Real-World Microservices Configuration Requirements
+# Scenario: Multi-service deployment with environment-specific requirements
+
+requirements:
+  # Service Discovery
+  - id: service-discovery-enabled
+    summary: >
+      Service discovery is required for production environments.
+      Ensures all services can locate each other dynamically.
+    conditions:
+      - path: deployment.environment
+        equals: "production"
+    requires:
+      - path: service_discovery.enabled
+        equals: true
+      - path: service_discovery.provider
+        equals: "consul"
+    remediation: >
+      Enable Consul service discovery for production deployments.
+      Configure service_discovery.enabled=true and provider="consul".
+    remediation_hints:
+      - type: set_field
+        path: service_discovery.enabled
+        value: true
+        description: Enable service discovery
+      - type: set_field
+        path: service_discovery.provider
+        value: "consul"
+        description: Use Consul as the service discovery backend
+    external_dependencies:
+      - id: consul-cluster
+        description: "Consul cluster must be deployed and accessible"
+        owner: platform-team
+        skip_in_environments: [local, staging]
+        verify:
+          type: manual
+        known_implementations:
+          - environment: production
+            url: https://github.com/org/infrastructure/blob/main/consul-setup.md
+
+  # Database Connection Pooling
+  - id: database-connection-pool
+    summary: >
+      Database connection pooling reduces connection overhead.
+      Min/max pool sizes must be appropriate for workload.
+    conditions:
+      - path: database.enabled
+        equals: true
+    requires:
+      - path: database.pool.min_connections
+        gte: 5
+      - path: database.pool.max_connections
+        gte: 20
+      - path: database.pool.max_connections
+        lte: 200
+      - path: database.pool.idle_timeout_seconds
+        gte: 30
+    remediation: >
+      Configure database connection pool with appropriate min/max sizes.
+      Min >= 5, Max between 20-200, Idle timeout >= 30s.
+    remediation_hints:
+      - type: set_field
+        path: database.pool.min_connections
+        value: 10
+        description: Minimum connections to maintain
+      - type: set_field
+        path: database.pool.max_connections
+        value: 50
+        description: Maximum connections allowed
+      - type: set_field
+        path: database.pool.idle_timeout_seconds
+        value: 300
+        description: Seconds before closing idle connections
+
+  # Cache Configuration
+  - id: cache-configuration
+    summary: >
+      Cache must be properly configured to avoid stale data.
+      TTL cannot be too high to prevent data staleness.
+    conditions:
+      - path: cache.enabled
+        equals: true
+    requires:
+      - path: cache.ttl_seconds
+        gte: 60
+      - path: cache.ttl_seconds
+        lte: 3600
+      - path: cache.max_size_mb
+        gte: 100
+    unless:
+      - path: cache.bypass_in_dev
+        equals: true
+    remediation: >
+      Configure cache with TTL between 60-3600 seconds and max size >= 100MB.
+    remediation_hints:
+      - type: set_field
+        path: cache.ttl_seconds
+        value: 600
+        description: Cache for 10 minutes
+
+  # Logging Configuration
+  - id: logging-level-production
+    summary: >
+      Production logging must not be too verbose to avoid performance impact.
+    conditions:
+      - path: deployment.environment
+        equals: "production"
+    requires:
+      - path: logging.level
+        equals: "info"
+      - path: logging.json_output
+        equals: true
+      - path: logging.sampling_enabled
+        equals: true
+    remediation: >
+      Set logging to INFO level with JSON output and sampling enabled for production.
+    remediation_hints:
+      - type: set_field
+        path: logging.level
+        value: "info"
+        description: INFO level (not DEBUG for performance)
+      - type: set_field
+        path: logging.json_output
+        value: true
+        description: Structured JSON logging
+
+  # Metrics and Monitoring
+  - id: metrics-collection
+    summary: >
+      Metrics collection is required for operational visibility.
+      Must expose Prometheus-compatible metrics endpoint.
+    conditions:
+      - path: deployment.environment
+        equals: "production"
+    requires:
+      - path: metrics.enabled
+        equals: true
+      - path: metrics.port
+        gte: 1024
+      - path: metrics.port
+        lte: 65535
+      - path: metrics.collectors
+        contains: "prometheus"
+    remediation: >
+      Enable metrics collection with Prometheus format on valid port.
+    remediation_hints:
+      - type: set_field
+        path: metrics.enabled
+        value: true
+        description: Enable metrics endpoint
+      - type: set_field
+        path: metrics.port
+        value: 9090
+        description: Standard Prometheus metrics port
+
+  # Resource Limits
+  - id: resource-limits-container
+    summary: >
+      Container resource limits prevent resource exhaustion.
+      Memory should be reasonable, CPU units valid.
+    requires:
+      - path: container.memory_limit_mb
+        gte: 256
+      - path: container.memory_limit_mb
+        lte: 16384
+      - path: container.cpu_limit_millicores
+        gte: 100
+      - path: container.cpu_limit_millicores
+        lte: 8000
+    remediation: >
+      Set reasonable container resource limits.
+      Memory: 256-16384 MB, CPU: 100-8000 millicores.
+    remediation_hints:
+      - type: set_field
+        path: container.memory_limit_mb
+        value: 1024
+        description: 1GB memory limit
+      - type: set_field
+        path: container.cpu_limit_millicores
+        value: 500
+        description: 0.5 CPU limit
+
+  # Timeout Configuration
+  - id: timeout-configuration
+    summary: >
+      All timeout values must be reasonable and consistent.
+    requires:
+      - path: timeouts.request_timeout_seconds
+        gte: 5
+      - path: timeouts.request_timeout_seconds
+        lte: 300
+      - path: timeouts.database_timeout_seconds
+        gte: 1
+      - path: timeouts.database_timeout_seconds
+        lte: 60
+      - path: timeouts.cache_timeout_seconds
+        gte: 1
+      - path: timeouts.cache_timeout_seconds
+        lte: 30
+    remediation: >
+      Configure timeout values within acceptable ranges.
+    remediation_hints:
+      - type: set_field
+        path: timeouts.request_timeout_seconds
+        value: 30
+        description: Default request timeout
+      - type: set_field
+        path: timeouts.database_timeout_seconds
+        value: 10
+        description: Database query timeout

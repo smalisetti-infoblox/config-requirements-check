@@ -1,0 +1,117 @@
+# Edge Case Testing
+# Boundary conditions, null handling, type coercion, deeply nested paths
+
+requirements:
+  # Edge Case 1: Boundary values
+  - id: numeric-boundary-values
+    summary: Test numeric boundaries at limits
+    requires:
+      - path: limits.min_value
+        gte: 0
+      - path: limits.min_value
+        lte: 2147483647
+      - path: limits.max_value
+        gte: 0
+      - path: limits.max_value
+        lte: 2147483647
+
+  # Edge Case 2: Empty/null collections
+  - id: empty-array-handling
+    summary: Test behavior with empty arrays
+    requires:
+      - path: allowed_hosts
+        contains: "localhost"  # Will fail if array empty or missing
+
+  # Edge Case 3: Deeply nested paths (5+ levels)
+  - id: deeply-nested-configuration
+    summary: Test deeply nested path traversal
+    requires:
+      - path: infrastructure.cloud.regions.primary.database.host
+        equals: "db.example.com"
+      - path: infrastructure.cloud.regions.primary.database.port
+        gte: 1024
+      - path: infrastructure.cloud.regions.primary.cache.redis.enabled
+        equals: true
+
+  # Edge Case 4: Null/nil value handling
+  - id: null-value-semantics
+    summary: Test how null values are handled
+    conditions:
+      - path: optional_field
+        equals: null
+    requires:
+      - path: has_fallback
+        equals: true
+    remediation: Configure fallback when optional_field is null
+
+  # Edge Case 5: String with special characters
+  - id: special-characters-in-strings
+    summary: Test strings with spaces, symbols, unicode
+    requires:
+      - path: app.description
+        equals: "My App v1.0 (production-ready) ✓"
+      - path: app.contact_email
+        equals: "admin+support@example.com"
+
+  # Edge Case 6: Version parsing edge cases
+  - id: version-edge-cases
+    summary: Test semantic version edge cases
+    requires:
+      - path: version.major
+        gte: 0
+      - path: version.major
+        lte: 999
+
+  # Edge Case 7: Float precision
+  - id: float-precision-handling
+    summary: Test float comparison with precision
+    requires:
+      - path: metrics.success_rate
+        gte: 0.95
+      - path: metrics.success_rate
+        lte: 1.0
+
+  # Edge Case 8: Path doesn't exist (missing config)
+  - id: missing-optional-config
+    summary: Some configs optional, some required
+    conditions:
+      - path: features.experimental
+        equals: true
+    requires:
+      - path: experimental.debug_mode
+        equals: true
+    remediation: Enable debug mode for experimental features
+
+  # Edge Case 9: Type coercion scenarios
+  - id: type-coercion-test
+    summary: Test implicit type conversions
+    requires:
+      - path: port
+        gte: 1024
+      - path: port
+        lte: 65535
+      - path: enabled
+        equals: true
+
+  # Edge Case 10: Array with single element
+  - id: single-element-array
+    summary: Test arrays with just one element
+    requires:
+      - path: regions
+        contains: "us-east-1"
+
+  # Edge Case 11: Whitespace and empty strings
+  - id: whitespace-handling
+    summary: Test strings with leading/trailing spaces
+    requires:
+      - path: config.name
+        equals: "my-service"  # Should NOT match "  my-service  "
+
+  # Edge Case 12: Zero and negative numbers
+  - id: zero-and-negative-numbers
+    summary: Test zero and negative boundary values
+    requires:
+      - path: queue.max_messages
+        gte: 0
+      - path: timeout_ms
+        gt: 0

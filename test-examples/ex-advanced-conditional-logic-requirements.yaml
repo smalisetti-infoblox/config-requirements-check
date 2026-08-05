@@ -1,0 +1,175 @@
+# Advanced Conditional Logic Test
+# Complex multi-condition scenarios with AND/OR semantics via unless
+
+requirements:
+  # Scenario 1: Feature flag dependency chain
+  # If feature A is enabled, features B and C must also be enabled
+  - id: feature-flag-dependency-chain
+    summary: >
+      Advanced features require foundational features to be enabled.
+      If advanced_analytics is enabled, basic analytics and data_collection must be enabled.
+    conditions:
+      - path: features.advanced_analytics
+        equals: true
+    requires:
+      - path: features.basic_analytics
+        equals: true
+      - path: features.data_collection
+        equals: true
+    remediation: >
+      Enable required foundational features before enabling advanced features.
+
+  # Scenario 2: Mutually exclusive configurations
+  # Can't use both new auth system AND legacy auth system
+  - id: mutually-exclusive-auth
+    summary: >
+      Cannot use both modern OAuth2 and legacy session-based auth simultaneously.
+    conditions:
+      - path: auth.enabled
+        equals: true
+    unless:
+      - path: auth.legacy_sessions_enabled
+        equals: true
+    requires:
+      - path: auth.oauth2.provider
+        equals: "okta"
+      - path: auth.oauth2.client_id
+        equals: null
+        # Note: This tests that client_id is SET (not null)
+
+  # Scenario 3: Version-dependent requirements
+  # If API version is 3+, must use new request/response formats
+  - id: api-version-3-requirements
+    summary: >
+      API v3+ requires request authentication and proper content negotiation.
+    conditions:
+      - path: api.version
+        gte: 3
+    requires:
+      - path: api.authentication.required
+        equals: true
+      - path: api.request_validation
+        equals: true
+      - path: api.response_compression.enabled
+        equals: true
+
+  # Scenario 4: Production-specific security requirements
+  - id: production-tls-requirement
+    summary: >
+      Production deployments must use TLS with strong cipher suites.
+    conditions:
+      - path: deployment.environment
+        equals: "production"
+      - path: server.tls.enabled
+        equals: true
+    requires:
+      - path: server.tls.min_version
+        equals: "1.3"
+      - path: server.tls.strong_ciphers_only
+        equals: true
+      - path: server.tls.certificate_verification
+        equals: true
+
+  # Scenario 5: Capacity-based configuration
+  # High-traffic environments need better resource allocation
+  - id: high-traffic-resource-allocation
+    summary: >
+      High-traffic deployments require increased worker threads and buffer sizes.
+    conditions:
+      - path: deployment.expected_qps
+        gte: 1000
+    requires:
+      - path: server.worker_threads
+        gte: 32
+      - path: server.request_buffer_size_kb
+        gte: 512
+      - path: server.connection_pool_size
+        gte: 200
+
+  # Scenario 6: Complex nested conditionals with arrays
+  - id: multi-region-deployment
+    summary: >
+      Multi-region deployments must have replication configured.
+      All regions must be in the supported list.
+    conditions:
+      - path: deployment.multi_region.enabled
+        equals: true
+      - path: deployment.regions
+        contains: "us-east-1"
+    requires:
+      - path: database.replication.enabled
+        equals: true
+      - path: database.replication.strategy
+        equals: "active-active"
+      - path: deployment.regions
+        contains: "us-west-2"
+    remediation: >
+      Configure active-active replication across all regions.
+
+  # Scenario 7: Feature parity across environments
+  - id: feature-parity-dev-prod
+    summary: >
+      If feature is enabled in production, must be testable in dev.
+    conditions:
+      - path: features.payment_processing
+        equals: true
+      - path: deployment.environment
+        equals: "production"
+    requires:
+      - path: features.payment_processing_mock
+        equals: true
+    remediation: >
+      Enable mock payment processing for dev/test environments.
+
+  # Scenario 8: Backwards compatibility constraint
+  - id: backwards-compatibility-api-v2
+    summary: >
+      Legacy clients require v2 API compatibility layer.
+      Cannot remove v2 if legacy clients still connect.
+    conditions:
+      - path: api.version
+        gte: 3
+    unless:
+      - path: api.legacy_clients_count
+        equals: 0
+    requires:
+      - path: api.v2_compatibility_layer
+        equals: true
+    remediation: >
+      Enable v2 compatibility layer until all clients migrate to v3+.
+
+  # Scenario 9: Data residency requirements
+  - id: gdpr-data-residency
+    summary: >
+      EU data must be stored in EU regions only.
+      Cannot use cross-region replication to non-EU regions.
+    conditions:
+      - path: deployment.data_classification
+        equals: "eu-personal-data"
+    requires:
+      - path: database.region
+        equals: "eu-central-1"
+      - path: database.replication.allowed_regions
+        contains: "eu-west-1"
+    remediation: >
+      Ensure all data replicas are within EU jurisdictions.
+
+  # Scenario 10: Graceful deprecation path
+  - id: deprecation-path-validation
+    summary: >
+      If using deprecated feature, must have migration plan.
+      Cannot remove old feature until migration is complete.
+    conditions:
+      - path: features.old_payment_gateway
+        equals: true
+    unless:
+      - path: migration.payment_gateway_complete
+        equals: true
+    requires:
+      - path: migration.payment_gateway_target
+        equals: "stripe"
+      - path: migration.payment_gateway_eol_date
+        equals: null
+        # Note: Must have an EOL date set
+    remediation: >
+      Set a clear EOL date for the deprecated payment gateway migration.

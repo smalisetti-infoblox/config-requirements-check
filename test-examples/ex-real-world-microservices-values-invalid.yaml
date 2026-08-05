@@ -1,0 +1,57 @@
+# Invalid Production Microservices Configuration
+# Multiple requirement violations
+
+deployment:
+  environment: "production"
+
+service_discovery:
+  # VIOLATION: Service discovery not enabled
+  enabled: false
+  provider: "consul"
+
+database:
+  enabled: true
+  pool:
+    # VIOLATION: min_connections too low
+    min_connections: 2
+    # VIOLATION: max_connections too high
+    max_connections: 500
+    # VIOLATION: idle_timeout_seconds too low
+    idle_timeout_seconds: 10
+
+cache:
+  enabled: true
+  # VIOLATION: TTL too high (> 3600)
+  ttl_seconds: 7200
+  # VIOLATION: max_size too low
+  max_size_mb: 50
+  bypass_in_dev: false
+
+logging:
+  # VIOLATION: DEBUG level too verbose for production
+  level: "debug"
+  # VIOLATION: Not using JSON output
+  json_output: false
+  # VIOLATION: Sampling not enabled
+  sampling_enabled: false
+
+metrics:
+  # VIOLATION: Metrics disabled in production
+  enabled: false
+  port: 9090
+  collectors:
+    - prometheus
+
+container:
+  # VIOLATION: Memory limit too low
+  memory_limit_mb: 128
+  # VIOLATION: CPU limit too high
+  cpu_limit_millicores: 16000
+
+timeouts:
+  # VIOLATION: Request timeout too high
+  request_timeout_seconds: 600
+  # VIOLATION: Database timeout too high
+  database_timeout_seconds: 120
+  # VIOLATION: Cache timeout too low
+  cache_timeout_seconds: 0

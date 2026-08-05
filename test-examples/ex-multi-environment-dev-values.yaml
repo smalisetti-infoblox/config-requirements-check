@@ -1,0 +1,31 @@
+# Development Environment Configuration
+
+environment: "dev"
+
+server:
+  enabled: true
+  port: 8080
+  tls:
+    enabled: false
+
+database:
+  enabled: true
+  name: "dev_db"
+  reset_on_startup: true
+  replication:
+    enabled: false
+
+authentication:
+  required: false
+  mfa_enabled: false
+
+load_balancer:
+  enabled: false
+
+monitoring:
+  enabled: true
+  backend: "prometheus"
+  retention_days: 7
+
+backup:
+  enabled: false

@@ -1,0 +1,43 @@
+# Valid Production Microservices Configuration
+# All requirements satisfied
+
+deployment:
+  environment: "production"
+
+service_discovery:
+  enabled: true
+  provider: "consul"
+
+database:
+  enabled: true
+  pool:
+    min_connections: 10
+    max_connections: 50
+    idle_timeout_seconds: 300
+
+cache:
+  enabled: true
+  ttl_seconds: 600
+  max_size_mb: 512
+  bypass_in_dev: false
+
+logging:
+  level: "info"
+  json_output: true
+  sampling_enabled: true
+
+metrics:
+  enabled: true
+  port: 9090
+  collectors:
+    - prometheus
+    - opentelemetry
+
+container:
+  memory_limit_mb: 1024
+  cpu_limit_millicores: 500
+
+timeouts:
+  request_timeout_seconds: 30
+  database_timeout_seconds: 10
+  cache_timeout_seconds: 5

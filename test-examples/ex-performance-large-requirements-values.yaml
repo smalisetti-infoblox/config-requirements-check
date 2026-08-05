@@ -1,0 +1,92 @@
+# Performance test values - large configuration with many settings
+
+database:
+  pool:
+    min: 10
+    max: 50
+  backup:
+    enabled: true
+    retention_days: 30
+  encryption:
+    enabled: true
+    algorithm: "aes-256"
+  replication:
+    enabled: true
+    replicas: 3
+  monitoring:
+    enabled: true
+    slow_query_log: true
+
+cache:
+  ttl_seconds: 600
+  eviction_policy: "lru"
+  persistence:
+    enabled: true
+  replication:
+    enabled: true
+    replicas: 2
+  monitoring:
+    enabled: true
+
+api_gateway:
+  rate_limit:
+    enabled: true
+    requests_per_second: 1000
+  auth:
+    enabled: true
+    type: "oauth2"
+  tls:
+    enabled: true
+    min_version: "1.3"
+  cors:
+    enabled: true
+    allowed_origins:
+      - "*"
+  logging:
+    enabled: true
+    level: "info"
+
+message_queue:
+  persistence:
+    enabled: true
+  acknowledgment:
+    required: true
+    timeout_seconds: 60
+  retry:
+    enabled: true
+    max_attempts: 5
+  dead_letter_queue:
+    enabled: true
+  monitoring:
+    enabled: true
+
+observability:
+  metrics:
+    enabled: true
+    interval_seconds: 30
+  tracing:
+    enabled: true
+    sample_rate: 0.5
+  logs:
+    aggregation_enabled: true
+  alerts:
+    enabled: true
+    notification_channels:
+      - "slack"
+      - "pagerduty"
+  slo:
+    enabled: true
+    target_availability_percent: 99.95
+
+security:
+  secrets:
+    vault_enabled: true
+    rotation_enabled: true
+    rotation_days: 30
+  network_policies:
+    enabled: true
+  rbac:
+    enabled: true
+  audit:
+    enabled: true
+    retention_days: 730

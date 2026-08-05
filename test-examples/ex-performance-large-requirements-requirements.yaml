@@ -1,0 +1,231 @@
+# Performance/Stress Test: Large Number of Requirements
+# Tests how the tool handles many requirements (simulates large configs)
+
+requirements:
+  # Database service requirements (10 related requirements)
+  - id: database-connection-pool
+    summary: Database connection pool configuration
+    requires:
+      - path: database.pool.min
+        gte: 5
+      - path: database.pool.max
+        gte: 20
+
+  - id: database-backup
+    summary: Database backup configuration
+    requires:
+      - path: database.backup.enabled
+        equals: true
+      - path: database.backup.retention_days
+        gte: 7
+
+  - id: database-encryption
+    summary: Database encryption at rest
+    requires:
+      - path: database.encryption.enabled
+        equals: true
+      - path: database.encryption.algorithm
+        equals: "aes-256"
+
+  - id: database-replication
+    summary: Database replication
+    requires:
+      - path: database.replication.enabled
+        equals: true
+      - path: database.replication.replicas
+        gte: 2
+
+  - id: database-monitoring
+    summary: Database monitoring
+    requires:
+      - path: database.monitoring.enabled
+        equals: true
+      - path: database.slow_query_log
+        equals: true
+
+  # Cache service requirements (10 related requirements)
+  - id: cache-ttl
+    summary: Cache TTL configuration
+    requires:
+      - path: cache.ttl_seconds
+        gte: 60
+      - path: cache.ttl_seconds
+        lte: 3600
+
+  - id: cache-eviction
+    summary: Cache eviction policy
+    requires:
+      - path: cache.eviction_policy
+        equals: "lru"
+
+  - id: cache-persistence
+    summary: Cache persistence
+    requires:
+      - path: cache.persistence.enabled
+        equals: true
+
+  - id: cache-replication
+    summary: Cache replication for HA
+    requires:
+      - path: cache.replication.enabled
+        equals: true
+      - path: cache.replication.replicas
+        gte: 1
+
+  - id: cache-monitoring
+    summary: Cache monitoring
+    requires:
+      - path: cache.monitoring.enabled
+        equals: true
+
+  # API Gateway requirements (10 related requirements)
+  - id: api-rate-limiting
+    summary: API rate limiting
+    requires:
+      - path: api_gateway.rate_limit.enabled
+        equals: true
+      - path: api_gateway.rate_limit.requests_per_second
+        gte: 100
+
+  - id: api-authentication
+    summary: API authentication
+    requires:
+      - path: api_gateway.auth.enabled
+        equals: true
+      - path: api_gateway.auth.type
+        equals: "oauth2"
+
+  - id: api-ssl
+    summary: API SSL/TLS
+    requires:
+      - path: api_gateway.tls.enabled
+        equals: true
+      - path: api_gateway.tls.min_version
+        equals: "1.3"
+
+  - id: api-cors
+    summary: API CORS configuration
+    requires:
+      - path: api_gateway.cors.enabled
+        equals: true
+      - path: api_gateway.cors.allowed_origins
+        contains: "*"
+
+  - id: api-logging
+    summary: API request logging
+    requires:
+      - path: api_gateway.logging.enabled
+        equals: true
+      - path: api_gateway.logging.level
+        equals: "info"
+
+  # Message Queue requirements (10 related requirements)
+  - id: queue-persistence
+    summary: Message queue persistence
+    requires:
+      - path: message_queue.persistence.enabled
+        equals: true
+
+  - id: queue-acknowledgment
+    summary: Queue message acknowledgment
+    requires:
+      - path: message_queue.acknowledgment.required
+        equals: true
+      - path: message_queue.acknowledgment.timeout_seconds
+        gte: 30
+
+  - id: queue-retry
+    summary: Queue retry policy
+    requires:
+      - path: message_queue.retry.enabled
+        equals: true
+      - path: message_queue.retry.max_attempts
+        gte: 3
+
+  - id: queue-deadletter
+    summary: Dead letter queue
+    requires:
+      - path: message_queue.dead_letter_queue.enabled
+        equals: true
+
+  - id: queue-monitoring
+    summary: Queue monitoring
+    requires:
+      - path: message_queue.monitoring.enabled
+        equals: true
+
+  # Monitoring and Observability (10 related requirements)
+  - id: metrics-collection
+    summary: Metrics collection
+    requires:
+      - path: observability.metrics.enabled
+        equals: true
+      - path: observability.metrics.interval_seconds
+        gte: 10
+
+  - id: distributed-tracing
+    summary: Distributed tracing
+    requires:
+      - path: observability.tracing.enabled
+        equals: true
+      - path: observability.tracing.sample_rate
+        gte: 0.1
+      - path: observability.tracing.sample_rate
+        lte: 1.0
+
+  - id: log-aggregation
+    summary: Log aggregation
+    requires:
+      - path: observability.logs.aggregation_enabled
+        equals: true
+
+  - id: alerting
+    summary: Alert configuration
+    requires:
+      - path: observability.alerts.enabled
+        equals: true
+      - path: observability.alerts.notification_channels
+        contains: "slack"
+
+  - id: slo-monitoring
+    summary: SLO monitoring
+    requires:
+      - path: observability.slo.enabled
+        equals: true
+      - path: observability.slo.target_availability_percent
+        gte: 99.9
+
+  # Security requirements (10 related requirements)
+  - id: secrets-management
+    summary: Secrets management
+    requires:
+      - path: security.secrets.vault_enabled
+        equals: true
+
+  - id: secrets-rotation
+    summary: Secrets rotation
+    requires:
+      - path: security.secrets.rotation_enabled
+        equals: true
+      - path: security.secrets.rotation_days
+        lte: 90
+
+  - id: network-policies
+    summary: Network policies
+    requires:
+      - path: security.network_policies.enabled
+        equals: true
+
+  - id: rbac
+    summary: Role-based access control
+    requires:
+      - path: security.rbac.enabled
+        equals: true
+
+  - id: audit-logging
+    summary: Audit logging
+    requires:
+      - path: security.audit.enabled
+        equals: true
+      - path: security.audit.retention_days
+        gte: 365

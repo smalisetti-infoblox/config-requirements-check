@@ -1,0 +1,34 @@
+# Staging Environment Configuration
+
+environment: "staging"
+
+server:
+  enabled: true
+  port: 443
+  tls:
+    enabled: false
+
+database:
+  enabled: true
+  name: "staging_db"
+  reset_on_startup: false
+  replication:
+    enabled: false
+
+authentication:
+  required: false
+  mfa_enabled: false
+
+load_balancer:
+  enabled: true
+  health_check_interval: 10
+
+monitoring:
+  enabled: true
+  backend: "prometheus"
+  retention_days: 14
+
+backup:
+  enabled: true
+  schedule: "daily"
+  retention_days: 30
