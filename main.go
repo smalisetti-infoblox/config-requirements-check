@@ -9,11 +9,14 @@ package main
 
 import (
 	_ "embed"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 // starterTemplate is a generic, placeholder-filled config-requirements.yaml
@@ -24,9 +27,17 @@ import (
 //go:embed examples/starter.yaml
 var starterTemplate string
 
+// Metadata contains audit trail information about the check execution.
+type Metadata struct {
+	Timestamp            string `json:"timestamp"`           // ISO8601 timestamp of execution
+	RequirementsFileHash string `json:"requirements_hash"`   // SHA256 hash of requirements file
+	ValuesFileHash       string `json:"values_hash"`         // SHA256 hash of values file
+}
+
 // Report is the full, flag-filtered result of one run, shared by the text
 // and JSON printers.
 type Report struct {
+	Metadata     *Metadata           `json:"metadata,omitempty"`
 	Features     []FeatureState      `json:"features,omitempty"`
 	Requirements []RequirementResult `json:"requirements,omitempty"`
 	Dependencies []DependencyEntry   `json:"dependencies,omitempty"`
@@ -34,6 +45,16 @@ type Report struct {
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// fileHash computes SHA256 hash of a file's contents
+func fileHash(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 func run(args []string, stdout, stderr *os.File) int {
@@ -142,7 +163,23 @@ Exit codes:
 	showCheck := *showCheckFlag || defaultMode
 	showDeps := *showDepsFlag || defaultMode
 
+	// Build metadata
+	var metadata *Metadata
+	if *format == "json" {
+		metadata = &Metadata{
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		}
+		// Compute file hashes for audit trail
+		if hash, err := fileHash(*requirementsPath); err == nil {
+			metadata.RequirementsFileHash = hash
+		}
+		if hash, err := fileHash(*valuesPath); err == nil {
+			metadata.ValuesFileHash = hash
+		}
+	}
+
 	var report Report
+	report.Metadata = metadata
 	if showFeatures {
 		report.Features = featureStates(values, reqs)
 	}
@@ -244,6 +281,10 @@ func printText(w *os.File, r Report, showFeatures, showCheck, showDeps bool) {
 				fmt.Fprintf(w, "  [MISCONFIGURED]  %s\n", req.ID)
 				fmt.Fprintf(w, "                   %s\n", req.Summary)
 				fmt.Fprintf(w, "                   unmet: %v\n", req.UnmetPaths)
+				// Show actual values for debugging
+				if len(req.ActualValues) > 0 {
+					fmt.Fprintf(w, "                   actual values: %v\n", req.ActualValues)
+				}
 				fmt.Fprintf(w, "                   fix: %s\n", req.Remediation)
 			}
 			for _, ref := range req.References {

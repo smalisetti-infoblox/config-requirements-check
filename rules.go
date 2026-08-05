@@ -298,22 +298,41 @@ func featureStates(values map[string]interface{}, reqs []Requirement) []FeatureS
 // RequirementResult is the outcome of evaluating one requirement against a
 // values file.
 type RequirementResult struct {
-	ID          string      `json:"id"`
-	Summary     string      `json:"summary"`
-	Applicable  bool        `json:"applicable"`
-	Satisfied   bool        `json:"satisfied"`
-	UnmetPaths  []string    `json:"unmet_paths,omitempty"`
-	Remediation string      `json:"remediation,omitempty"`
-	References  []Reference `json:"references,omitempty"`
+	ID           string                 `json:"id"`
+	Summary      string                 `json:"summary"`
+	Applicable   bool                   `json:"applicable"`
+	Satisfied    bool                   `json:"satisfied"`
+	UnmetPaths   []string               `json:"unmet_paths,omitempty"`
+	Remediation  string                 `json:"remediation,omitempty"`
+	References   []Reference            `json:"references,omitempty"`
+	ActualValues map[string]interface{} `json:"actual_values,omitempty"` // Values for all paths referenced in conditions/requires
 }
 
 // evaluateRequirement checks all Conditions (AND). If they don't all hold,
 // the requirement doesn't apply to this values file (Applicable=false,
 // Satisfied is meaningless/true so it never fails a check). If they do
 // hold, every Requires entry is checked independently and unmet ones are
-// reported by path.
+// reported by path. Also captures actual values for all paths mentioned.
 func evaluateRequirement(values map[string]interface{}, r Requirement) RequirementResult {
 	res := RequirementResult{ID: r.ID, Summary: r.Summary, Remediation: r.Remediation, References: r.References}
+
+	// Collect all paths referenced in conditions and requires
+	pathsToCapture := make(map[string]bool)
+	for _, c := range r.Conditions {
+		pathsToCapture[c.Path] = true
+	}
+	for _, req := range r.Requires {
+		pathsToCapture[req.Path] = true
+	}
+
+	// Capture actual values for all referenced paths
+	res.ActualValues = make(map[string]interface{})
+	for path := range pathsToCapture {
+		if v, ok := lookupPath(values, path); ok {
+			res.ActualValues[path] = v
+		}
+		// If path not found, we don't include it in ActualValues to keep output clean
+	}
 
 	for _, c := range r.Conditions {
 		if !conditionHolds(values, c) {

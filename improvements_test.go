@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -377,5 +378,188 @@ cors:
 	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d; output:\n%s", code, out)
+	}
+}
+
+// ==== Improvement #3: Actual Values in Errors Tests ====
+
+func TestEvaluateRequirement_CapturesActualValues(t *testing.T) {
+	req := Requirement{
+		ID: "test",
+		Conditions: []Condition{
+			{Path: "redis.enabled", Equals: true},
+		},
+		Requires: []Condition{
+			{Path: "redis.cluster_mode", Equals: true},
+		},
+	}
+
+	values := map[string]interface{}{
+		"redis": map[string]interface{}{
+			"enabled":      true,
+			"cluster_mode": false,
+		},
+	}
+
+	res := evaluateRequirement(values, req)
+	if res.ActualValues == nil {
+		t.Fatalf("should capture actual values")
+	}
+
+	// Both paths should be captured
+	if len(res.ActualValues) != 2 {
+		t.Fatalf("expected 2 actual values, got %d: %v", len(res.ActualValues), res.ActualValues)
+	}
+
+	// Check captured values
+	if res.ActualValues["redis.enabled"] != true {
+		t.Fatalf("expected redis.enabled=true, got %v", res.ActualValues["redis.enabled"])
+	}
+	if res.ActualValues["redis.cluster_mode"] != false {
+		t.Fatalf("expected redis.cluster_mode=false, got %v", res.ActualValues["redis.cluster_mode"])
+	}
+}
+
+func TestEvaluateRequirement_ActualValuesNotCapturedForMissingPaths(t *testing.T) {
+	req := Requirement{
+		ID: "test",
+		Conditions: []Condition{
+			{Path: "feature.enabled", Equals: true},
+		},
+		Requires: []Condition{
+			{Path: "feature.setting", Equals: "value"},
+		},
+	}
+
+	values := map[string]interface{}{
+		"feature": map[string]interface{}{
+			"enabled": true,
+			// setting is unset
+		},
+	}
+
+	res := evaluateRequirement(values, req)
+
+	// Only the set path should be in ActualValues
+	if len(res.ActualValues) != 1 {
+		t.Fatalf("expected 1 actual value (setting unset), got %d: %v", len(res.ActualValues), res.ActualValues)
+	}
+	if res.ActualValues["feature.enabled"] != true {
+		t.Fatalf("expected feature.enabled=true in ActualValues")
+	}
+	if _, ok := res.ActualValues["feature.setting"]; ok {
+		t.Fatalf("unset path should not appear in ActualValues")
+	}
+}
+
+func TestCLI_ActualValuesInOutput(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: config-check
+    summary: "Service must be configured"
+    conditions:
+      - path: service.enabled
+        equals: true
+    requires:
+      - path: service.port
+        gte: 1024
+    remediation: "Configure service.port >= 1024"
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+service:
+  enabled: true
+  port: 80
+`)
+
+	code, out := runCLI(t, []string{"-check", "-values", valuesPath, "-requirements", reqPath})
+	if code != 1 {
+		t.Fatalf("expected exit 1 (misconfigured), got %d", code)
+	}
+
+	// Should show actual values in text output
+	if !strings.Contains(out, "actual values") {
+		t.Fatalf("expected 'actual values' in output for misconfigured requirement, got:\n%s", out)
+	}
+	if !strings.Contains(out, "service.enabled") {
+		t.Fatalf("expected actual value for service.enabled in output")
+	}
+}
+
+// ==== Improvement #5: Audit Trail Metadata Tests ====
+
+func TestCLI_MetadataInJSON(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: test
+    summary: "Test requirement"
+    conditions:
+      - path: enabled
+        equals: true
+    requires:
+      - path: ready
+        equals: true
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+enabled: true
+ready: true
+`)
+
+	code, out := runCLI(t, []string{"-format", "json", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	var report interface{}
+	err := json.Unmarshal([]byte(out), &report)
+	if err != nil {
+		t.Fatalf("expected valid JSON, got error %v", err)
+	}
+
+	// Check that metadata is present in JSON output
+	reportMap := report.(map[string]interface{})
+	if _, hasMetadata := reportMap["metadata"]; !hasMetadata {
+		t.Fatalf("expected metadata field in JSON output")
+	}
+
+	metadata := reportMap["metadata"].(map[string]interface{})
+	if _, hasTimestamp := metadata["timestamp"]; !hasTimestamp {
+		t.Fatalf("expected timestamp in metadata")
+	}
+	if _, hasReqHash := metadata["requirements_hash"]; !hasReqHash {
+		t.Fatalf("expected requirements_hash in metadata")
+	}
+	if _, hasValHash := metadata["values_hash"]; !hasValHash {
+		t.Fatalf("expected values_hash in metadata")
+	}
+}
+
+func TestCLI_NoMetadataInTextOutput(t *testing.T) {
+	dir := t.TempDir()
+	reqPath := writeTempFile(t, dir, "req.yaml", `
+requirements:
+  - id: test
+    summary: "Test"
+    conditions:
+      - path: enabled
+        equals: true
+    requires:
+      - path: ready
+        equals: true
+`)
+	valuesPath := writeTempFile(t, dir, "values.yaml", `
+enabled: true
+ready: true
+`)
+
+	code, out := runCLI(t, []string{"-format", "text", "-values", valuesPath, "-requirements", reqPath})
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	// Metadata should not be in text output (only JSON)
+	if strings.Contains(out, "timestamp") || strings.Contains(out, "requirements_hash") {
+		t.Fatalf("metadata should not appear in text output")
 	}
 }
