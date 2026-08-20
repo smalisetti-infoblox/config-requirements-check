@@ -291,3 +291,53 @@ the version of the app/chart the target environment is upgrading to). Parse
 the JSON output (`features`, `requirements`, `dependencies` keys) to drive a
 CI check, a rollout gate, or a dashboard — or just rely on the exit code if
 you only need pass/fail.
+
+## Multi-app requirements in deployment-configurations
+
+For deployment repositories managing multiple applications, keep per-app
+requirements files organized in a `config-requirements/` directory:
+
+```
+deployment-configurations/
+├── config-requirements/
+│   ├── ddi.dns.dtc.yaml          # Requirements for ddi.dns.dtc
+│   ├── ddi.msad.collector.yaml   # Requirements for ddi.msad.collector
+│   └── ddi.cloud.proxy.yaml      # Requirements for ddi.cloud.proxy
+└── .github/workflows/
+    └── validate-config-requirements.yaml  # CI workflow
+```
+
+The CI workflow can auto-detect which app a values file belongs to (based on
+directory structure) and validate it against the correct requirements file:
+
+```yaml
+# values/envs/prod/ddi-dns-dtc/values.yaml
+#   → validated against config-requirements/ddi.dns.dtc.yaml
+
+# values/envs/staging/ddi-msad-collector/values.yaml
+#   → validated against config-requirements/ddi.msad.collector.yaml
+```
+
+**Benefits:**
+- Requirements co-located with deployment values (single source of truth)
+- Easy to review requirement changes in the same PR as value changes
+- Version-pinned (requirements locked at specific commit, no external sync needed)
+- Scalable (add new apps just by adding new requirement files)
+- Each app team can maintain their requirements independently
+
+**Example CI workflow pattern:**
+```bash
+# Detect app from values file path
+APP=$(echo "$VALUES_FILE" | grep -oE 'ddi[^/]+' | head -1 | tr '-' '.')
+
+# Find and validate against app-specific requirements
+REQUIREMENTS_FILE="config-requirements/$APP.yaml"
+if [ -f "$REQUIREMENTS_FILE" ]; then
+  config-requirements-check -check -deps \
+    -requirements "$REQUIREMENTS_FILE" \
+    -values "$VALUES_FILE"
+fi
+```
+
+See [deployment-configurations](https://github.com/Infoblox-CTO/deployment-configurations)
+for a working example with ddi.dns.dtc consolidated health requirements.
