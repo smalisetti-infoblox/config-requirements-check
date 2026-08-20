@@ -1,5 +1,5 @@
-# Compliant example: redis is enabled and consolidatedHealth is explicitly
-# enabled too, satisfying the consolidated-health-enabled-toggle requirement.
+# Compliant example: redis is enabled, consolidatedHealth is explicitly
+# enabled, and hms is enabled too, satisfying the consolidated-health-enabled-toggle requirement.
 redis:
   enabled: true
 
@@ -7,4 +7,7 @@ string:
   val: helloworld2
 
 consolidatedHealth:
+  enabled: true
+
+hms:
   enabled: true

@@ -17,10 +17,12 @@ requirements:
     requires:
       - path: consolidatedHealth.enabled
         equals: true
+      - path: hms.enabled
+        equals: true
     remediation: >
-      Set consolidatedHealth.enabled: true in the environment's values file
-      (in addition to redis.enabled: true, if Redis is used for other
-      purposes).
+      Set consolidatedHealth.enabled: true and hms.enabled: true in the
+      environment's values file (in addition to redis.enabled: true, if Redis
+      is used for other purposes).
     external_dependencies:
       - id: kafka-topic-consolidated-health-events
         description: >

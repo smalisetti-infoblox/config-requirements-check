@@ -67,6 +67,8 @@ requirements:
     requires:
       - path: consolidatedHealth.enabled
         equals: true
+      - path: hms.enabled
+        equals: true
       - path: consolidatedHealth.version
         gte: "1.2.0"    # semver-aware (e.g., "1.2.0" >= "1.1.5")
 
@@ -75,8 +77,8 @@ requirements:
     severity: error
 
     remediation: >
-      Set consolidatedHealth.enabled: true (in addition to redis.enabled:
-      true, if Redis is used for other purposes).
+      Set consolidatedHealth.enabled: true and hms.enabled: true (in
+      addition to redis.enabled: true, if Redis is used for other purposes).
 
     # Optional: structured fix hints, gated by path/condition if needed.
     remediation_hints:
