@@ -45,21 +45,50 @@ requirements:
       (previously inferred from redis.enabled).
 
     # ALL entries must hold (AND) for this requirement to apply to a given
-    # values file. A single entry today; add more to gate on several flags
-    # together.
+    # values file. Each condition specifies a path and exactly one operator
+    # (equals, gte, gt, lte, lt, contains, between, not_equals).
     conditions:
       - path: redis.enabled
         equals: true
 
+    # Optional: forbidden states — if the requirement applies AND any of these
+    # conditions hold, it's reported as unmet with prefix "FORBIDDEN: <path>".
+    unless:
+      - path: consolidatedHealth.disabled
+        equals: true
+
+    # Optional: conditionally skip this entire requirement if any condition holds.
+    skip_if:
+      - path: legacyMode
+        equals: true
+
     # ALL entries must hold (AND) once conditions apply. Each unmet entry is
-    # reported individually, by path.
+    # reported individually, by path. Uses same operators as conditions.
     requires:
       - path: consolidatedHealth.enabled
         equals: true
+      - path: consolidatedHealth.version
+        gte: "1.2.0"    # semver-aware (e.g., "1.2.0" >= "1.1.5")
+
+    # Optional: error (default), warn, or info. Descriptive only — does not
+    # change exit code behavior (exit 1 only on violated conditions/requires).
+    severity: error
 
     remediation: >
       Set consolidatedHealth.enabled: true (in addition to redis.enabled:
       true, if Redis is used for other purposes).
+
+    # Optional: structured fix hints, gated by path/condition if needed.
+    remediation_hints:
+      - type: set_field
+        path: consolidatedHealth.enabled
+        value: true
+        description: Enable consolidated health feature
+        # Optional: hint only applies if this path/condition hold
+        if_path: consolidatedHealth.disabled
+        if_condition:
+          path: consolidatedHealth.disabled
+          equals: true
 
     # Prerequisites this tool cannot verify itself — owned by other
     # repos/systems. Always surfaced as a checklist when `conditions` hold;
@@ -88,6 +117,26 @@ requirements:
         url: https://github.com/org/deployment-configurations/pull/128418
 ```
 
+## Condition Operators
+
+Each condition specifies a `path` and exactly one operator from:
+
+- **`equals: <value>`** — exact equality (default fallback; also handles `null`/unset)
+- **`gte: <value>`** — greater-than-or-equal (numeric or semver-aware if both are version-like)
+- **`gt: <value>`** — greater-than (numeric or semver)
+- **`lte: <value>`** — less-than-or-equal (numeric or semver)
+- **`lt: <value>`** — less-than (numeric or semver)
+- **`contains: <value>`** — array membership (checks if looked-up value is an array containing this element)
+- **`between: {min: <a>, max: <b>}`** — range validation (`min <= value <= max`, numeric)
+- **`not_equals: <value>`** — negated equality
+
+Numeric/semver comparisons coerce types intelligently: `"1.2.3"` (string),
+`1.2.3` (float), and `true` (boolean, as 1.0) can all be compared. Semver
+comparison (for `gte`/`gt`/`lte`/`lt` only) activates when **both** operands
+parse as semantic versions (format: `major[.minor[.patch]][-prerelease]`).
+
+## Adding Requirements
+
 Adding a new breaking change is just appending a new entry to
 `requirements:` — no schema changes needed. `verify.type` is a named,
 extensible field: only `manual` (print-as-checklist, never blocks) is
@@ -102,6 +151,10 @@ it — only a genuinely shared default (e.g. a chart's base `values.yaml`
 with no per-env override) covers more than one environment, and even then
 it's worth double-checking nothing overrides it downstream.
 
+You can also gate requirements on environment name via `-environment <name>`:
+each external dependency can list environments in `skip_in_environments`
+(a `[]string` field) to hide it from the checklist in those specific environments.
+
 ## Usage
 
 ```
@@ -111,7 +164,13 @@ config-requirements-check -values <path>
             [-check]        # validate conditions/requires, report violations
             [-deps]         # print external-dependency checklist
             [-feature <id>] # restrict output to a single requirement id
+            [-environment <name>]  # skip dependencies marked for this environment
             [-format text|json]   # default text
+
+config-requirements-check -values-dir <path>
+            [-requirements config-requirements.yaml]
+            [-check]        # report files with violations
+            [-format text|json]
 
 config-requirements-check -lint [-requirements config-requirements.yaml] [-format text|json]
 
@@ -120,6 +179,12 @@ config-requirements-check -init
 
 `-init` prints a starter `config-requirements.yaml` to stdout and exits — no
 `-values` or `-requirements` needed (see Quick start above).
+
+`-values-dir <path>` recursively walks a directory for all `values.yaml` files
+(each found file is checked independently against the same requirements) —
+mutually exclusive with `-values`. Useful for batch-checking a monorepo across
+environments. Note: `-environment` is ignored in batch mode; environment-scoped
+dependency filtering only applies to single-file mode.
 
 `-lint` validates the requirements registry's own schema/structure — no
 `-values` needed. Two layers of protection:
@@ -144,13 +209,19 @@ OK: no issues found
 With no output-selecting flag (`-features`/`-check`/`-deps`), all three run
 and print together — a full report in one pass.
 
-The process exits non-zero **only** when `-check` (or the no-flag default,
-which includes `-check`) finds at least one requirement whose `conditions`
-hold but whose `requires` doesn't. `-features` and `-deps` are purely
-informational and never affect the exit code.
+Exit codes:
+- **0**: no violations found, or `-features` / `-deps` / `-lint` / `-init` ran successfully
+- **1**: `-check` (or the no-flag default, which includes `-check`) found at least one
+  requirement whose `conditions` hold but whose `requires` doesn't; or `-lint` found a
+  structural problem in the requirements file
+- **2**: usage error — bad flags, missing `-values` (or neither `-values` nor `-values-dir`),
+  unreadable/unparsable file, or invalid `-format` value
 
-Run `config-requirements-check -h` for the full flag reference with
-examples and exit codes.
+`-features` and `-deps` are purely informational and never affect the exit code (only
+`-check`/`-lint` failures cause non-zero exits).
+
+Run `config-requirements-check -h` for the full flag reference with examples. See
+`EXAMPLES.md` for detailed flag-by-flag walkthroughs and complex use cases.
 
 ## Worked example
 

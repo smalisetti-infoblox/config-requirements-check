@@ -169,9 +169,6 @@ pre-commit install --install-hooks
 ## Still Need Help?
 
 ```bash
-# See all hook details
-cat PRE_COMMIT_HOOKS.md
-
 # See what each hook does
 cat .pre-commit-config.yaml
 

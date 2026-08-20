@@ -56,7 +56,7 @@ repos:
       - id: require-docs
         name: Require docs update for flag/exported changes
         description: Warn if exported functions or flags changed without doc updates
-        entry: bash -c './.git/hooks/check-docs.sh'
+        entry: bash -c './scripts/check-docs.sh'
         language: system
         pass_filenames: false
         stages: [commit-msg]
@@ -74,7 +74,7 @@ repos:
       - id: no-bare-todos
         name: No unresolved TODOs
         description: Fail if TODO/FIXME lacks a github issue reference
-        entry: bash -c './.git/hooks/check-todos.sh'
+        entry: bash -c './scripts/check-todos.sh'
         language: system
         pass_filenames: false
 
@@ -82,7 +82,7 @@ repos:
       - id: verify-help-output
         name: Verify help output completeness
         description: Check that all flags documented in help text
-        entry: bash -c './.git/hooks/check-help-completeness.sh'
+        entry: bash -c './scripts/check-help-completeness.sh'
         language: system
         pass_filenames: false
         stages: [commit-msg]
@@ -91,7 +91,7 @@ repos:
       - id: check-error-handling
         name: Check error handling
         description: Warn about unchecked errors
-        entry: bash -c './.git/hooks/check-errors.sh'
+        entry: bash -c './scripts/check-errors.sh'
         language: system
         types: [go]
         pass_filenames: false
@@ -100,7 +100,7 @@ repos:
       - id: validate-commit-msg
         name: Validate commit message
         description: Require meaningful commit messages (>10 chars, not "fix" or "update")
-        entry: bash -c './.git/hooks/validate-commit-msg.sh'
+        entry: bash -c './scripts/validate-commit-msg.sh'
         language: system
         pass_filenames: false
         stages: [commit-msg]
@@ -130,7 +130,7 @@ repos:
       - id: coverage-threshold
         name: Coverage threshold check
         description: Ensure test coverage remains above threshold
-        entry: bash -c './.git/hooks/check-coverage.sh'
+        entry: bash -c './scripts/check-coverage.sh'
         language: system
         types: [go]
         pass_filenames: false
@@ -140,7 +140,7 @@ repos:
       - id: check-error-messages
         name: Check error message quality
         description: Ensure errors start with lowercase and are descriptive
-        entry: bash -c './.git/hooks/check-error-msgs.sh'
+        entry: bash -c './scripts/check-error-msgs.sh'
         language: system
         types: [go]
         pass_filenames: false
@@ -149,7 +149,7 @@ repos:
       - id: no-magic-numbers
         name: Check for magic numbers
         description: Warn about unexplained numeric literals
-        entry: bash -c './.git/hooks/check-magic-numbers.sh'
+        entry: bash -c './scripts/check-magic-numbers.sh'
         language: system
         types: [go]
         pass_filenames: false
@@ -158,7 +158,7 @@ repos:
       - id: verify-examples
         name: Verify examples are valid
         description: Check that example YAML files are valid
-        entry: bash -c './.git/hooks/verify-examples.sh'
+        entry: bash -c './scripts/verify-examples.sh'
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -167,7 +167,7 @@ repos:
       - id: check-starter-yaml-sync
         name: Sync starter.yaml with new features
         description: Ensure starter.yaml is updated when new requirements are added
-        entry: bash -c './.git/hooks/check-starter-yaml-sync.sh'
+        entry: bash -c './scripts/check-starter-yaml-sync.sh'
         language: system
         pass_filenames: false
         stages: [pre-commit]
