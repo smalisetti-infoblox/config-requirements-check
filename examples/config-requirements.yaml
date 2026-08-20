@@ -1,28 +1,30 @@
-# Example requirements registry, modeled on a real migration: a service
-# renamed an implicit config inference (feature X worked whenever
-# infra-flag Y was on) into an explicit toggle. Copy this file into your
-# own repo and edit the entries for your own breaking changes.
+# Example requirements registry modeling real-world dependency chains.
+# When a feature like Consolidated Health requires multiple infrastructure
+# components, express all transitive dependencies explicitly.
 requirements:
-  - id: consolidated-health-enabled-toggle
+  - id: consolidated-health-requires-full-stack
     summary: >
-      consolidatedHealth.enabled now explicitly gates consolidated health
-      (previously inferred from redis.enabled). Environments that enabled
-      consolidated health via redis.enabled=true must set
-      consolidatedHealth.enabled=true, or the feature silently disables.
+      Consolidated Health checks require HMS and Redis to both be explicitly
+      enabled. If consolidatedHealth.enabled=true but HMS or Redis are disabled,
+      the health checks silently fail (the exact kind of gap this tool catches).
+
+    # When consolidated health is enabled, enforce the full dependency chain
     conditions:
-      - path: redis.enabled
-        equals: true
-      - path: string.val
-        equals: helloworld
-    requires:
       - path: consolidatedHealth.enabled
         equals: true
+
+    # All these dependencies must be satisfied for consolidated health to work
+    requires:
       - path: hms.enabled
         equals: true
+      - path: redis.enabled
+        equals: true
+
     remediation: >
-      Set consolidatedHealth.enabled: true and hms.enabled: true in the
-      environment's values file (in addition to redis.enabled: true, if Redis
-      is used for other purposes).
+      Enable the full Consolidated Health stack:
+      1. Set consolidatedHealth.enabled: true (already set)
+      2. Set hms.enabled: true (enables the HMS service)
+      3. Set redis.enabled: true (enables Redis backend required by HMS)
     external_dependencies:
       - id: kafka-topic-consolidated-health-events
         description: >
@@ -31,8 +33,6 @@ requirements:
         owner: platform-kafka / kafka-topics repo
         verify:
           type: manual
-        # Environments that already did this — not proof it's done for
-        # whatever values file you're checking, just something to copy.
         known_implementations:
           - environment: us-dev-2
             url: https://github.com/org/kafka-topics-repo/pull/123
@@ -43,3 +43,19 @@ requirements:
         owner: platform-ingress / ingress-config repo
         verify:
           type: manual
+
+  - id: hms-requires-redis
+    summary: >
+      HMS service requires Redis to be enabled. If hms.enabled=true but
+      redis.enabled=false, HMS will fail to start.
+
+    conditions:
+      - path: hms.enabled
+        equals: true
+
+    requires:
+      - path: redis.enabled
+        equals: true
+
+    remediation: >
+      Enable Redis: set redis.enabled: true (required for HMS to function).

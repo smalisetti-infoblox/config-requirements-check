@@ -1,13 +1,16 @@
-# Compliant example: redis is enabled, consolidatedHealth is explicitly
-# enabled, and hms is enabled too, satisfying the consolidated-health-enabled-toggle requirement.
-redis:
-  enabled: true
-
-string:
-  val: helloworld2
+# Compliant example: Full dependency chain satisfied
+# - consolidatedHealth.enabled: true (enables health checks)
+# - hms.enabled: true (HMS service that performs health checks)
+# - redis.enabled: true (backend required by HMS)
+# This setup satisfies both requirements:
+# 1. consolidated-health-requires-full-stack (consolidatedHealth requires hms + redis)
+# 2. hms-requires-redis (hms requires redis)
 
 consolidatedHealth:
   enabled: true
 
 hms:
+  enabled: true
+
+redis:
   enabled: true

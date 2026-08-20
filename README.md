@@ -39,46 +39,52 @@ for real.
 
 ```yaml
 requirements:
-  - id: consolidated-health-enabled-toggle
+  - id: consolidated-health-requires-full-stack
     summary: >
-      consolidatedHealth.enabled now explicitly gates consolidated health
-      (previously inferred from redis.enabled).
+      Consolidated Health checks require HMS and Redis to both be explicitly
+      enabled. If consolidatedHealth is on but HMS or Redis are off, the
+      health checks silently fail.
 
     # ALL entries must hold (AND) for this requirement to apply to a given
     # values file. Each condition specifies a path and exactly one operator
     # (equals, gte, gt, lte, lt, contains, between, not_equals).
     conditions:
-      - path: redis.enabled
+      - path: consolidatedHealth.enabled
         equals: true
 
     # Optional: forbidden states — if the requirement applies AND any of these
     # conditions hold, it's reported as unmet with prefix "FORBIDDEN: <path>".
     unless:
-      - path: consolidatedHealth.disabled
+      - path: maintenanceMode
         equals: true
 
     # Optional: conditionally skip this entire requirement if any condition holds.
     skip_if:
-      - path: legacyMode
+      - path: legacyHealthChecks
         equals: true
 
     # ALL entries must hold (AND) once conditions apply. Each unmet entry is
     # reported individually, by path. Uses same operators as conditions.
+    # Here we express the full transitive dependency chain: consolidated health
+    # requires both HMS and Redis (the dependencies of HMS).
     requires:
-      - path: consolidatedHealth.enabled
-        equals: true
       - path: hms.enabled
         equals: true
-      - path: consolidatedHealth.version
-        gte: "1.2.0"    # semver-aware (e.g., "1.2.0" >= "1.1.5")
+      - path: redis.enabled
+        equals: true
+      - path: hms.version
+        gte: "2.0.0"    # semver-aware (e.g., "2.0.0" >= "1.5.0")
 
     # Optional: error (default), warn, or info. Descriptive only — does not
     # change exit code behavior (exit 1 only on violated conditions/requires).
     severity: error
 
     remediation: >
-      Set consolidatedHealth.enabled: true and hms.enabled: true (in
-      addition to redis.enabled: true, if Redis is used for other purposes).
+      Enable the full Consolidated Health stack:
+      1. Set consolidatedHealth.enabled: true (already set)
+      2. Set hms.enabled: true (HMS service performs the checks)
+      3. Set redis.enabled: true (Redis backend required by HMS)
+      4. Upgrade HMS to version 2.0.0 or later
 
     # Optional: structured fix hints, gated by path/condition if needed.
     remediation_hints:
