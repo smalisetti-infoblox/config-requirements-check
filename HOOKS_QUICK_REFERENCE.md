@@ -29,6 +29,7 @@ $ git commit -m "Add new feature"
 ⚠️  Documentation (warns or blocks)
   - require-docs: Documentation files updated?
   - verify-help-output: Help text includes new flags?
+  - validate-docs-accuracy: README matches actual flags/schema?
   - verify-examples: Example files valid?
   - check-starter-yaml-sync: Starter template updated with new features?
   
@@ -50,7 +51,8 @@ $ git commit -m "Add new feature"
 | Code changed but no tests | `git add *_test.go && git commit` |
 | Debug println left in | Remove `fmt.Println()` statements |
 | TODO without issue ref | Change `// TODO` to `// TODO: (#123)` |
-| Undocumented flag | Add to help text in main.go |
+| Undocumented flag | Add to help text in main.go and update README.md flag list |
+| README doesn't match code | Update README.md to document all flags, operators, and fields from code |
 | New requirement not in starter.yaml | Add example to `examples/starter.yaml` |
 | Test coverage dropped | Write more tests for new code |
 | Commit message too short | Use at least 10 characters, be descriptive |
