@@ -171,3 +171,11 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: validate-docs-accuracy
+        name: Validate documentation accuracy
+        description: Ensure README.md matches actual flag/schema implementation
+        entry: bash -c './scripts/validate-docs-accuracy.sh'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
